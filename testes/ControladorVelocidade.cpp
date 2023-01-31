@@ -88,7 +88,7 @@ double tempo;
 double tempo_aux;
 
 // Controle de velocidade
-float velocidade_Referencia = 5;
+float velocidade_Referencia = 1;
 float velocidade_Referencia_anterior = 0;
 bool trocar_sentido = false;
 bool foward = true;
@@ -288,8 +288,8 @@ int main(int argc, char *argv[])
                 encoder0Pos = encoder(2);
                 encoder1Pos = encoder(3);
 
-                voltas_esquerda = encoder0Pos / 1632.67;
-                voltas_direita = encoder1Pos / 1632.67;
+                voltas_esquerda = encoder0Pos / 4096;
+                voltas_direita = encoder1Pos / 4096;
 
                 velocidade_esquerda = 1000 * (voltas_esquerda - voltas_esquerda_anterior) / (tempo_aux);
                 velocidade_direita = 1000 * (voltas_direita - voltas_direita_anterior) / (tempo_aux);
