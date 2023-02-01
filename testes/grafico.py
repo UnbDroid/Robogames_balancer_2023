@@ -1,6 +1,7 @@
 import csv
 import matplotlib.pyplot as plt
 
+
 iteration = []
 potencia_antes = []
 potencia_limitador = []

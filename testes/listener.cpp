@@ -14,6 +14,7 @@
 #include <sys/time.h>
 #include "ros/ros.h"
 #include "std_msgs/Float32.h"
+#include "Motor.h"
 
 // Calculo de velocidade
 #define pi 3.14159265359f
@@ -181,12 +182,6 @@ static void __signal_handler(__attribute__((unused)) int dummy)
     return;
 }
 
-void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
-{
-    velocidade_referencia = msg->data;
-    ROS_INFO("I heard: [%f]", velocidade_referencia);
-}
-
 int main(int argc, char *argv[])
 {
 
@@ -216,7 +211,7 @@ int main(int argc, char *argv[])
 
     ros::NodeHandle n;
 
-    ros::Subscriber sub = n.subscribe("chatter", 1000, chatterCallback);
+    ros::Publisher chatter_pub = n.advertise<std_msgs::Float32>("chatter", 10);
 
     while (running)
     {
@@ -225,7 +220,6 @@ int main(int argc, char *argv[])
 
         //Inputs
 
-        ros::spinOnce();
 
         encoder0Pos = encoder(2);
         encoder1Pos = encoder(3);
@@ -254,6 +248,12 @@ int main(int argc, char *argv[])
         motorEsquerda(potencia_motor_esquerda);
 
         printf("%f, %f, %f \n", velocidade_esquerda,velocidade_direita,velocidade_referencia);
+
+        std_msgs::Float32 msg;
+        msg.data = velocidade_direita;
+        chatter_pub.publish(msg);
+        ros::spinOnce();
+
 
         //Lidando com período
         rc_usleep(PERIODO - (micros() - tempo));
