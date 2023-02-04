@@ -14,10 +14,13 @@ int main(int argc, char **argv)
 
     while (ros::ok())
     {
-        float input;
-        std::cin >> input;
+        float input1;
+        std::cin >> input1;
+
         std_msgs::Float32 msg;
-        msg.data = input;
+
+        msg.data = input1;
+
         chatter_pub.publish(msg);
         ros::spinOnce();
     }

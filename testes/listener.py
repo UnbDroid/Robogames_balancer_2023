@@ -1,7 +1,7 @@
 import rospy
 import matplotlib.pyplot as plt
 import rospy
-from std_msgs.msg import Float64
+from std_msgs.msg import Float32
 
 
 def callback(data):
@@ -16,7 +16,7 @@ def callback(data):
 
 def listener():
     rospy.init_node('listener', anonymous=True)
-    rospy.Subscriber("chatter", Float64, callback)
+    rospy.Subscriber("chatter", Float32, callback)
     plt.show()
     rospy.spin()
 

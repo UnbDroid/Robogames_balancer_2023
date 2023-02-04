@@ -13,12 +13,12 @@ encoder1 =[]
 encoder2 = []
 
 def readFile():
-  with open('output3.csv', newline='') as csvfile:
+  with open('output1.csv', newline='') as csvfile:
     spamreader = csv.reader(csvfile, delimiter=',', quotechar='|')
     for idx, row in enumerate(spamreader):
         iteration.append(idx)
         try:
-            potencia_antes.append(int(row[0]))
+            potencia_antes.append(float(row[1]))
             # potencia_limitador.append(float(row[1]))
             # velocidade_referencia.append(float(row[2]))
             # velocidade.append(float(row[3]))
@@ -37,7 +37,7 @@ def plotGraph():
     # potencia_antes.append(0.1)
     # encoder1.append(1)
     # encoder1.append(1)
-    # potencia_antes.append(1)
+    # potencia_antes.append(0.1)
     # potencia_antes.append(1)
     # plt.plot(iteration, potencia_antes, label='potencia_antes')
     plt.plot(iteration, potencia_antes, label='velocidade')

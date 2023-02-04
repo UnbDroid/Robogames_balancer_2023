@@ -14,7 +14,6 @@
 #include <sys/time.h>
 #include "ros/ros.h"
 #include "std_msgs/Float32.h"
-#include "Motor.h"
 
 // Calculo de velocidade
 #define pi 3.14159265359f
@@ -25,10 +24,10 @@
 #define POT_MAX_DIREITA 1
 #define POT_MIN_ESQUERDA 0.01f
 #define POT_MIN_DIREITA 0.01f
-#define Kp_esquerda 1.5f
-#define Ki_esquerda 0.1f
-#define Kp_direita 1.5f
-#define Ki_direita 0.1f
+// #define Kp_esquerda 2.0f
+// #define Ki_esquerda 0.2f
+// #define Kp_direita 1.5f
+// #define Ki_direita 0.18f
 
 #define GPS_HEADER_PIN_PWM_DIREITA_3 2
 #define GPS_HEADER_PIN_PWM_ESQUERDA_4 3
@@ -68,10 +67,15 @@ float velocidade_referencia = 0;
 float somatorio_erro_direita = 0;
 float somatorio_erro_esquerda = 0;
 
- float potencia_motor_direita = 0;
- float potencia_motor_esquerda = 0;
+float potencia_motor_direita = 0;
+float potencia_motor_esquerda = 0;
 
 int running;
+
+float Kp_esquerda = 1.0;
+float Ki_esquerda = 0.0;
+float Kp_direita = 0.3;
+float Ki_direita = 0.000001;
 
 void motorEsquerda(float potEsquerda)
 {
@@ -104,14 +108,14 @@ void motorEsquerda(float potEsquerda)
         rc_pwm_set_duty(0, 'A', potEsquerda);
 
         rc_gpio_set_value(1, GPIO_PIN_1_17, 0);
-        rc_gpio_set_value(1, GPIO_PIN_1_25, 1);
+        rc_gpio_set_value(1, GPIO_PIN_1_25, 0); // 1
     }
     else
     {
         rc_pwm_set_duty(0, 'A', potEsquerda);
 
         rc_gpio_set_value(1, GPIO_PIN_1_25, 0);
-        rc_gpio_set_value(1, GPIO_PIN_1_17, 1);
+        rc_gpio_set_value(1, GPIO_PIN_1_17, 0); // 1
     }
 }
 
@@ -182,6 +186,12 @@ static void __signal_handler(__attribute__((unused)) int dummy)
     return;
 }
 
+void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
+{
+    Kp_direita = msg->data;
+    ROS_INFO("Escutei KP: %f", msg->data);
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -213,13 +223,29 @@ int main(int argc, char *argv[])
 
     ros::Publisher chatter_pub = n.advertise<std_msgs::Float32>("chatter", 10);
 
+    int i = 0;
+
+    // ros::Subscriber sub = n.subscribe("chatter", 1000, chatterCallback);
+
     while (running)
     {
-        
+
         tempo = micros();
 
-        //Inputs
+        if ((i++)*PERIODO < 1000000)
+        {
+            velocidade_referencia = 1.5;
+            rc_led_set(RC_LED_BAT25, 1);
+        }
+        else if (i*PERIODO < 2000000)
+        {
+            velocidade_referencia = -1.5;
+            rc_led_set(RC_LED_BAT25, 0);
+        } else {
+            i =0;
+        }
 
+        // Inputs
 
         encoder0Pos = encoder(2);
         encoder1Pos = encoder(3);
@@ -233,34 +259,36 @@ int main(int argc, char *argv[])
         voltas_esquerda_anterior = voltas_esquerda;
         voltas_direita_anterior = voltas_direita;
 
-        //Controle
+        // Controle
         erro_direita = velocidade_referencia - velocidade_direita;
         erro_esquerda = velocidade_referencia - velocidade_esquerda;
 
         somatorio_erro_direita += erro_direita;
         somatorio_erro_esquerda += erro_esquerda; // TODO untilize
 
-        potencia_motor_direita = erro_direita*Kp_direita + (somatorio_erro_direita*Ki_direita)*PERIODO;
-        potencia_motor_esquerda = erro_esquerda*Kp_esquerda + (somatorio_erro_esquerda*Ki_esquerda)*PERIODO;
+        potencia_motor_direita = erro_direita * Kp_direita + (somatorio_erro_direita * Ki_direita) * PERIODO;
+        potencia_motor_esquerda = erro_esquerda * Kp_esquerda + (somatorio_erro_esquerda * Ki_esquerda) * PERIODO;
 
-        //Output
+        // Output
         motorDireita(potencia_motor_direita);
         motorEsquerda(potencia_motor_esquerda);
 
-        printf("%f, %f, %f \n", velocidade_esquerda,velocidade_direita,velocidade_referencia);
+        printf("%f, %f, %f, %f, %f \n", velocidade_esquerda, velocidade_direita, velocidade_referencia, Kp_direita, Ki_direita);
 
         std_msgs::Float32 msg;
         msg.data = velocidade_direita;
-        chatter_pub.publish(msg);
+        if (velocidade_direita > -3.0 && velocidade_direita < 3.0)
+        {
+            chatter_pub.publish(msg);
+        }
+        ROS_INFO("%f", velocidade_direita);
         ros::spinOnce();
 
-
-        //Lidando com período
+        // Lidando com período
         rc_usleep(PERIODO - (micros() - tempo));
     }
 
     rc_cleanup();
-    rc_pwm_cleanup(0);
     rc_encoder_eqep_cleanup();
 
     return 0;
