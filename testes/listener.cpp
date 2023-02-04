@@ -63,6 +63,7 @@ float erro_direita = 0;
 float erro_esquerda = 0;
 
 float velocidade_referencia = 0;
+float velocidade_referencia_old = 0;
 
 float somatorio_erro_direita = 0;
 float somatorio_erro_esquerda = 0;
@@ -77,10 +78,14 @@ float Ki_esquerda = 0.0;
 float Kp_direita = 0.3;
 float Ki_direita = 0.000001;
 
+int saturadoDireito = 0;
+int saturadoEsquerdo = 0;
+
 void motorEsquerda(float potEsquerda)
 {
     int praTras = 0;
     int parado = 0;
+    saturadoEsquerdo = 0;
 
     if (potEsquerda < 0)
     {
@@ -88,11 +93,12 @@ void motorEsquerda(float potEsquerda)
         potEsquerda = -potEsquerda;
     }
 
-    if (potEsquerda > POT_MAX_ESQUERDA)
+    if (potEsquerda >= POT_MAX_ESQUERDA)
     {
         potEsquerda = POT_MAX_ESQUERDA;
+        saturadoEsquerdo = 1;
     }
-    else if (potEsquerda < POT_MIN_ESQUERDA)
+    else if (potEsquerda <= POT_MIN_ESQUERDA)
     {
         parado = 1;
     }
@@ -125,17 +131,20 @@ void motorDireita(float potDireita)
     int praTras = 0;
     int parado = 0;
 
+    saturadoDireito = 0;
+
     if (potDireita < 0)
     {
         praTras = 1;
         potDireita = -potDireita;
     }
 
-    if (potDireita > POT_MAX_DIREITA)
+    if (potDireita >= POT_MAX_DIREITA)
     {
         potDireita = POT_MAX_DIREITA;
+        saturadoDireito = 1;
     }
-    else if (potDireita < POT_MIN_DIREITA)
+    else if (potDireita <= POT_MIN_DIREITA)
     {
         parado = 1;
     }
@@ -229,20 +238,30 @@ int main(int argc, char *argv[])
 
     while (running)
     {
+        float multiplicacao = velocidade_referencia_old * velocidade_referencia;
+        if (multiplicacao <= 0.0){
+            somatorio_erro_direita = 0;
+            somatorio_erro_esquerda = 0;
+            printf("Entrou no if: %f, %f\n", somatorio_erro_direita, somatorio_erro_esquerda);
+        }
+
+            velocidade_referencia_old = velocidade_referencia;
 
         tempo = micros();
 
-        if ((i++)*PERIODO < 1000000)
+        if ((i++) * PERIODO < 1000000)
         {
             velocidade_referencia = 1.5;
             rc_led_set(RC_LED_BAT25, 1);
         }
-        else if (i*PERIODO < 2000000)
+        else if (i * PERIODO < 2000000)
         {
             velocidade_referencia = -1.5;
             rc_led_set(RC_LED_BAT25, 0);
-        } else {
-            i =0;
+        }
+        else
+        {
+            i = 0;
         }
 
         // Inputs
@@ -263,8 +282,15 @@ int main(int argc, char *argv[])
         erro_direita = velocidade_referencia - velocidade_direita;
         erro_esquerda = velocidade_referencia - velocidade_esquerda;
 
-        somatorio_erro_direita += erro_direita;
-        somatorio_erro_esquerda += erro_esquerda; // TODO untilize
+        if (saturadoDireito == 0)
+        {
+            somatorio_erro_direita += erro_direita;
+        }
+
+        if (saturadoEsquerdo == 0)
+        {
+            somatorio_erro_esquerda += erro_esquerda;
+        }
 
         potencia_motor_direita = erro_direita * Kp_direita + (somatorio_erro_direita * Ki_direita) * PERIODO;
         potencia_motor_esquerda = erro_esquerda * Kp_esquerda + (somatorio_erro_esquerda * Ki_esquerda) * PERIODO;
@@ -273,7 +299,7 @@ int main(int argc, char *argv[])
         motorDireita(potencia_motor_direita);
         motorEsquerda(potencia_motor_esquerda);
 
-        printf("%f, %f, %f, %f, %f \n", velocidade_esquerda, velocidade_direita, velocidade_referencia, Kp_direita, Ki_direita);
+        printf("%f, %f, %f \n", velocidade_direita, somatorio_erro_direita, somatorio_erro_esquerda);
 
         std_msgs::Float32 msg;
         msg.data = velocidade_direita;

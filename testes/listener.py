@@ -6,12 +6,15 @@ from std_msgs.msg import Float32
 
 def callback(data):
     # Adicione o dado a um array para plotar
+    count = count + 1
     x.append(len(x))
     y.append(data.data)
     # Limpe e redessine o gráfico
-    plt.clf()
-    plt.plot(x, y)
-    plt.pause(0.01)
+    if count >= 20 :
+        plt.clf()
+        plt.plot(x, y)
+        plt.pause(0.01)
+        count = 0
 
 
 def listener():
@@ -22,6 +25,8 @@ def listener():
 
 
 if __name__ == '__main__':
+    
     x = []
     y = []
+    count = 0
     listener()
