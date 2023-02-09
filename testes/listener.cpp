@@ -14,6 +14,7 @@
 #include <sys/time.h>
 #include "ros/ros.h"
 #include "std_msgs/Float32.h"
+#include "std_msgs/Float32MultiArray.h"
 
 // Calculo de velocidade
 #define pi 3.14159265359f
@@ -62,7 +63,7 @@ float velocidade_Referencia;
 float erro_direita = 0;
 float erro_esquerda = 0;
 
-float velocidade_referencia = 0;
+float velocidade_referencia = 1.5;
 float velocidade_referencia_old = 0;
 
 float somatorio_erro_direita = 0;
@@ -80,6 +81,9 @@ float Ki_direita = 0.000001;
 
 int saturadoDireito = 0;
 int saturadoEsquerdo = 0;
+
+float velocidade_direita_old = 0;
+float velocidade_esquerda_old = 0;
 
 void motorEsquerda(float potEsquerda)
 {
@@ -114,14 +118,14 @@ void motorEsquerda(float potEsquerda)
         rc_pwm_set_duty(0, 'A', potEsquerda);
 
         rc_gpio_set_value(1, GPIO_PIN_1_17, 0);
-        rc_gpio_set_value(1, GPIO_PIN_1_25, 0); // 1
+        rc_gpio_set_value(1, GPIO_PIN_1_25, 1);
     }
     else
     {
         rc_pwm_set_duty(0, 'A', potEsquerda);
 
         rc_gpio_set_value(1, GPIO_PIN_1_25, 0);
-        rc_gpio_set_value(1, GPIO_PIN_1_17, 0); // 1
+        rc_gpio_set_value(1, GPIO_PIN_1_17, 1); 
     }
 }
 
@@ -159,13 +163,13 @@ void motorDireita(float potDireita)
     {
         rc_pwm_set_duty(0, 'B', potDireita);
         rc_gpio_set_value(3, GPIO_PIN_3_17, 0);
-        rc_gpio_set_value(3, GPIO_PIN_3_20, 1);
+        rc_gpio_set_value(3, GPIO_PIN_3_20, 1); //1
     }
     else
     {
         rc_pwm_set_duty(0, 'B', potDireita);
         rc_gpio_set_value(3, GPIO_PIN_3_20, 0);
-        rc_gpio_set_value(3, GPIO_PIN_3_17, 1);
+        rc_gpio_set_value(3, GPIO_PIN_3_17, 1); //1
     }
 }
 
@@ -197,8 +201,8 @@ static void __signal_handler(__attribute__((unused)) int dummy)
 
 void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
 {
-    Kp_direita = msg->data;
-    ROS_INFO("Escutei KP: %f", msg->data);
+    velocidade_referencia = msg->data;
+    ROS_INFO("Escutei velocidade referencia: %f", msg->data);
 }
 
 int main(int argc, char *argv[])
@@ -226,54 +230,75 @@ int main(int argc, char *argv[])
     signal(SIGINT, __signal_handler);
     running = 1;
 
-    ros::init(argc, argv, "listener");
+    ros::init(argc, argv, "controle_velocidade");
 
     ros::NodeHandle n;
 
-    ros::Publisher chatter_pub = n.advertise<std_msgs::Float32>("chatter", 10);
+    ros::Publisher chatter_pub = n.advertise<std_msgs::Float32MultiArray>("chatter", 10);
+
+    ros::Subscriber sub = n.subscribe("referencia", 1000, chatterCallback);
 
     int i = 0;
-
-    // ros::Subscriber sub = n.subscribe("chatter", 1000, chatterCallback);
 
     while (running)
     {
         float multiplicacao = velocidade_referencia_old * velocidade_referencia;
-        if (multiplicacao <= 0.0){
+        if (multiplicacao <= 0.0)
+        {
             somatorio_erro_direita = 0;
             somatorio_erro_esquerda = 0;
             printf("Entrou no if: %f, %f\n", somatorio_erro_direita, somatorio_erro_esquerda);
         }
 
-            velocidade_referencia_old = velocidade_referencia;
+        velocidade_referencia_old = velocidade_referencia;
 
         tempo = micros();
 
-        if ((i++) * PERIODO < 1000000)
-        {
-            velocidade_referencia = 1.5;
-            rc_led_set(RC_LED_BAT25, 1);
-        }
-        else if (i * PERIODO < 2000000)
-        {
-            velocidade_referencia = -1.5;
-            rc_led_set(RC_LED_BAT25, 0);
-        }
-        else
-        {
-            i = 0;
-        }
+        // if ((i++) * PERIODO < 1000000)
+        // {
+        //     velocidade_referencia = 1.5;
+        //     rc_led_set(RC_LED_BAT25, 1);
+        // }
+        // else if (i * PERIODO < 2000000)
+        // {
+        //     velocidade_referencia = -1.5;
+        //     rc_led_set(RC_LED_BAT25, 0);
+        // }
+        // else
+        // {
+        //     i = 0;
+        // }
 
         // Inputs
 
         encoder0Pos = encoder(2);
         encoder1Pos = encoder(3);
 
+        printf("Encoder: %f, %f", -encoder0Pos, encoder1Pos);
+
         voltas_esquerda = -encoder0Pos / (double)4096;
         voltas_direita = encoder1Pos / (double)4096;
 
         velocidade_esquerda = 1000000 * (voltas_esquerda - voltas_esquerda_anterior) / ((double)(PERIODO));
         velocidade_direita = 1000000 * (voltas_direita - voltas_direita_anterior) / ((double)(PERIODO));
+
+        if (velocidade_direita >= -4.0 && velocidade_direita <= 4.0)
+        {
+            velocidade_direita_old = velocidade_direita;
+        }
+        else
+        {
+            velocidade_direita = velocidade_direita_old;
+        }
+
+        if (velocidade_esquerda >= -4.0 && velocidade_esquerda <= 4.0)
+        {
+            velocidade_esquerda_old = velocidade_esquerda;
+        }
+        else
+        {
+            velocidade_esquerda = velocidade_esquerda_old;
+        }
 
         voltas_esquerda_anterior = voltas_esquerda;
         voltas_direita_anterior = voltas_direita;
@@ -299,15 +324,19 @@ int main(int argc, char *argv[])
         motorDireita(potencia_motor_direita);
         motorEsquerda(potencia_motor_esquerda);
 
-        printf("%f, %f, %f \n", velocidade_direita, somatorio_erro_direita, somatorio_erro_esquerda);
+        printf("%f, %f, %f, %f, %f \n", velocidade_esquerda, somatorio_erro_esquerda, velocidade_referencia, voltas_esquerda, voltas_direita);
 
-        std_msgs::Float32 msg;
-        msg.data = velocidade_direita;
+        std_msgs::Float32MultiArray msg;
+        msg.data.push_back(velocidade_esquerda);
+        msg.data.push_back(somatorio_erro_esquerda);
+        msg.data.push_back(velocidade_referencia);
+        msg.data.push_back(erro_esquerda);
+
         if (velocidade_direita > -3.0 && velocidade_direita < 3.0)
         {
             chatter_pub.publish(msg);
         }
-        ROS_INFO("%f", velocidade_direita);
+
         ros::spinOnce();
 
         // Lidando com período
