@@ -66,6 +66,9 @@ float erro_esquerda = 0;
 float velocidade_referencia = 1.5;
 float velocidade_referencia_old = 0;
 
+float velocidade_referencia_esquerda = 1.5;
+float velocidade_referencia_esquerda_old = 0;
+
 float somatorio_erro_direita = 0;
 float somatorio_erro_esquerda = 0;
 
@@ -74,8 +77,8 @@ float potencia_motor_esquerda = 0;
 
 int running;
 
-float Kp_esquerda = 1.0;
-float Ki_esquerda = 0.0;
+float Kp_esquerda = 0.3;
+float Ki_esquerda = 0.000001;
 float Kp_direita = 0.3;
 float Ki_direita = 0.000001;
 
@@ -242,15 +245,22 @@ int main(int argc, char *argv[])
 
     while (running)
     {
-        float multiplicacao = velocidade_referencia_old * velocidade_referencia;
-        if (multiplicacao <= 0.0)
+        float multiplicacaoDireita = velocidade_referencia_old * velocidade_referencia;
+        if (multiplicacaoDireita <= 0.0)
         {
             somatorio_erro_direita = 0;
-            somatorio_erro_esquerda = 0;
-            printf("Entrou no if: %f, %f\n", somatorio_erro_direita, somatorio_erro_esquerda);
         }
 
-        velocidade_referencia_old = velocidade_referencia;
+        velocidade_referencia_old = velocidade_referencia;        
+        
+        
+        float multiplicacaoEsquerda = velocidade_referencia_esquerda_old * velocidade_referencia_esquerda;
+        if (multiplicacaoEsquerda <= 0.0)
+        {
+            somatorio_erro_esquerda = 0;
+        }
+
+        velocidade_referencia_esquerda_old = velocidade_referencia_esquerda;
 
         tempo = micros();
 
@@ -305,7 +315,7 @@ int main(int argc, char *argv[])
 
         // Controle
         erro_direita = velocidade_referencia - velocidade_direita;
-        erro_esquerda = velocidade_referencia - velocidade_esquerda;
+        erro_esquerda = velocidade_referencia_esquerda - velocidade_esquerda;
 
         if (saturadoDireito == 0)
         {
