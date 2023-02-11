@@ -31,7 +31,7 @@ void dmp_callback(void)
     std_msgs::Float32 msg;
     msg.data = (data.dmp_TaitBryan[TB_ROLL_Y] * RAD_TO_DEG);
     pub.publish(msg);
-    ROS_INFO("%f", msg.data);
+    // ROS_INFO("%f", msg.data);
 }
 
 int main(int argc, char *argv[])

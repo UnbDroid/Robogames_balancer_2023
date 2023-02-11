@@ -63,7 +63,7 @@ float velocidade_Referencia;
 float erro_direita = 0;
 float erro_esquerda = 0;
 
-float velocidade_referencia = 1.5;
+float velocidade_referencia = 0;
 float velocidade_referencia_old = 0;
 
 float velocidade_referencia_esquerda = 1.5;
@@ -120,15 +120,15 @@ void motorEsquerda(float potEsquerda)
     {
         rc_pwm_set_duty(0, 'A', potEsquerda);
 
-        rc_gpio_set_value(1, GPIO_PIN_1_17, 0);
-        rc_gpio_set_value(1, GPIO_PIN_1_25, 1);
+        rc_gpio_set_value(1, GPIO_PIN_1_25, 0);
+        rc_gpio_set_value(1, GPIO_PIN_1_17, 1);
     }
     else
     {
         rc_pwm_set_duty(0, 'A', potEsquerda);
 
-        rc_gpio_set_value(1, GPIO_PIN_1_25, 0);
-        rc_gpio_set_value(1, GPIO_PIN_1_17, 1); 
+        rc_gpio_set_value(1, GPIO_PIN_1_17, 0); 
+        rc_gpio_set_value(1, GPIO_PIN_1_25, 1);
     }
 }
 
@@ -165,14 +165,14 @@ void motorDireita(float potDireita)
     else if (praTras)
     {
         rc_pwm_set_duty(0, 'B', potDireita);
-        rc_gpio_set_value(3, GPIO_PIN_3_17, 0);
-        rc_gpio_set_value(3, GPIO_PIN_3_20, 1); //1
+        rc_gpio_set_value(3, GPIO_PIN_3_20, 0);
+        rc_gpio_set_value(3, GPIO_PIN_3_17, 1);
     }
     else
     {
         rc_pwm_set_duty(0, 'B', potDireita);
-        rc_gpio_set_value(3, GPIO_PIN_3_20, 0);
-        rc_gpio_set_value(3, GPIO_PIN_3_17, 1); //1
+        rc_gpio_set_value(3, GPIO_PIN_3_17, 0);
+        rc_gpio_set_value(3, GPIO_PIN_3_20, 1);
     }
 }
 
@@ -204,8 +204,14 @@ static void __signal_handler(__attribute__((unused)) int dummy)
 
 void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
 {
-    velocidade_referencia = msg->data;
-    ROS_INFO("Escutei velocidade referencia: %f", msg->data);
+    float teste = msg->data;
+    if(teste > -1.0 && teste < 1.0){
+    velocidade_referencia = 0;
+    // ROS_INFO("Escutei velocidade referencia entre -1.0 e 1.0: %f",velocidade_referencia);
+    } else {
+        velocidade_referencia = teste;
+    // ROS_INFO("Escutei velocidade referencia: %f", velocidade_referencia);
+    }
 }
 
 int main(int argc, char *argv[])
@@ -249,18 +255,19 @@ int main(int argc, char *argv[])
         if (multiplicacaoDireita <= 0.0)
         {
             somatorio_erro_direita = 0;
+            somatorio_erro_esquerda = 0;
         }
 
         velocidade_referencia_old = velocidade_referencia;        
         
         
-        float multiplicacaoEsquerda = velocidade_referencia_esquerda_old * velocidade_referencia_esquerda;
-        if (multiplicacaoEsquerda <= 0.0)
-        {
-            somatorio_erro_esquerda = 0;
-        }
+        // float multiplicacaoEsquerda = velocidade_referencia_esquerda_old * velocidade_referencia_esquerda;
+        // if (multiplicacaoEsquerda <= 0.0)
+        // {
+        //     somatorio_erro_esquerda = 0;
+        // }
 
-        velocidade_referencia_esquerda_old = velocidade_referencia_esquerda;
+        // velocidade_referencia_esquerda_old = velocidade_referencia_esquerda;
 
         tempo = micros();
 
@@ -284,10 +291,12 @@ int main(int argc, char *argv[])
         encoder0Pos = encoder(2);
         encoder1Pos = encoder(3);
 
-        printf("Encoder: %f, %f", -encoder0Pos, encoder1Pos);
+        // printf("Encoder: %f, %f \n", encoder0Pos, encoder1Pos);
 
         voltas_esquerda = -encoder0Pos / (double)4096;
         voltas_direita = encoder1Pos / (double)4096;
+
+        // printf("Voltas: %f, %f \n", voltas_direita, voltas_esquerda);
 
         velocidade_esquerda = 1000000 * (voltas_esquerda - voltas_esquerda_anterior) / ((double)(PERIODO));
         velocidade_direita = 1000000 * (voltas_direita - voltas_direita_anterior) / ((double)(PERIODO));
@@ -315,7 +324,7 @@ int main(int argc, char *argv[])
 
         // Controle
         erro_direita = velocidade_referencia - velocidade_direita;
-        erro_esquerda = velocidade_referencia_esquerda - velocidade_esquerda;
+        erro_esquerda = velocidade_referencia - velocidade_esquerda;
 
         if (saturadoDireito == 0)
         {
@@ -334,18 +343,19 @@ int main(int argc, char *argv[])
         motorDireita(potencia_motor_direita);
         motorEsquerda(potencia_motor_esquerda);
 
-        printf("%f, %f, %f, %f, %f \n", velocidade_esquerda, somatorio_erro_esquerda, velocidade_referencia, voltas_esquerda, voltas_direita);
+        // printf("Esquerda: %f, %f, %f, \n", velocidade_esquerda, somatorio_erro_esquerda, velocidade_referencia);
+        // printf("Direita: %f, %f, %f, \n", velocidade_direita, somatorio_erro_direita, velocidade_referencia);
 
-        std_msgs::Float32MultiArray msg;
-        msg.data.push_back(velocidade_esquerda);
-        msg.data.push_back(somatorio_erro_esquerda);
-        msg.data.push_back(velocidade_referencia);
-        msg.data.push_back(erro_esquerda);
+        // std_msgs::Float32MultiArray msg;
+        // msg.data.push_back(velocidade_esquerda);
+        // msg.data.push_back(somatorio_erro_esquerda);
+        // msg.data.push_back(velocidade_referencia);
+        // msg.data.push_back(erro_esquerda);
 
-        if (velocidade_direita > -3.0 && velocidade_direita < 3.0)
-        {
-            chatter_pub.publish(msg);
-        }
+        // if (velocidade_direita > -3.0 && velocidade_direita < 3.0)
+        // {
+        //     chatter_pub.publish(msg);
+        // }
 
         ros::spinOnce();
 
