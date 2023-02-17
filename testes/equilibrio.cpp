@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
     while (running)
     {
 
-        // tempo = micros();
+        tempo = micros();
 
         // Controle
         error = setpoint - measurement;
@@ -83,6 +83,16 @@ int main(int argc, char *argv[])
         ros::spinOnce();
 
         // Lidando com período
-        // rc_usleep(PERIODO - (micros() - tempo));
+        int testePeriodo = PERIODO - (micros() - tempo);
+
+        if (testePeriodo > 0)
+        {
+            // Lidando com período
+            rc_usleep(testePeriodo);
+        }
+        else
+        {
+            perror("DEU RUIM RAPAZ!! PROCESSAAAAMENTO ...\n");
+        }
     }
 }

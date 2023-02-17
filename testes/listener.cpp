@@ -127,7 +127,7 @@ void motorEsquerda(float potEsquerda)
     {
         rc_pwm_set_duty(0, 'A', potEsquerda);
 
-        rc_gpio_set_value(1, GPIO_PIN_1_17, 0); 
+        rc_gpio_set_value(1, GPIO_PIN_1_17, 0);
         rc_gpio_set_value(1, GPIO_PIN_1_25, 1);
     }
 }
@@ -205,12 +205,15 @@ static void __signal_handler(__attribute__((unused)) int dummy)
 void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
 {
     float teste = msg->data;
-    if(teste > -1.0 && teste < 1.0){
-    velocidade_referencia = 0;
-    // ROS_INFO("Escutei velocidade referencia entre -1.0 e 1.0: %f",velocidade_referencia);
-    } else {
+    if (teste > -1.0 && teste < 1.0)
+    {
+        velocidade_referencia = 0;
+        // ROS_INFO("Escutei velocidade referencia entre -1.0 e 1.0: %f",velocidade_referencia);
+    }
+    else
+    {
         velocidade_referencia = teste;
-    // ROS_INFO("Escutei velocidade referencia: %f", velocidade_referencia);
+        // ROS_INFO("Escutei velocidade referencia: %f", velocidade_referencia);
     }
 }
 
@@ -258,9 +261,8 @@ int main(int argc, char *argv[])
             somatorio_erro_esquerda = 0;
         }
 
-        velocidade_referencia_old = velocidade_referencia;        
-        
-        
+        velocidade_referencia_old = velocidade_referencia;
+
         // float multiplicacaoEsquerda = velocidade_referencia_esquerda_old * velocidade_referencia_esquerda;
         // if (multiplicacaoEsquerda <= 0.0)
         // {
@@ -359,8 +361,18 @@ int main(int argc, char *argv[])
 
         ros::spinOnce();
 
-        // Lidando com período
-        rc_usleep(PERIODO - (micros() - tempo));
+        int testePeriodo = PERIODO - (micros() - tempo);
+        printf("periodo: %d\n", testePeriodo);
+
+        if (testePeriodo > 0)
+        {
+            // Lidando com período
+            rc_usleep(testePeriodo);
+        }
+        else
+        {
+            perror("DEU RUIM RAPAZ!! PROCESSAAAAMENTO ...\n");
+        }
     }
 
     rc_cleanup();

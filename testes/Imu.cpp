@@ -14,11 +14,21 @@
 #define GPIO_INT_PIN_CHIP 3
 #define GPIO_INT_PIN_PIN 21
 #define SAMPLE_RATE_HZ 200
+#define PERIODO 30000 // TODO microssegundos
+
+int tempo = 0;
 
 static int running = 0;
 static rc_mpu_data_t data;
 
 ros::Publisher pub;
+
+unsigned int micros()
+{
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &t); // change CLOCK_MONOTONIC_RAW to CLOCK_MONOTONIC on non linux computers
+    return t.tv_sec * 1000 + (t.tv_nsec + 500000) / 1000;
+}
 
 static void __signal_handler(__attribute__((unused)) int dummy)
 {
@@ -66,7 +76,21 @@ int main(int argc, char *argv[])
 
     while (ros::ok())
     {
+        tempo = micros();
+
         ros::spinOnce();
+
+        int testePeriodo = PERIODO - (micros() - tempo);
+
+        if (testePeriodo > 0)
+        {
+            // Lidando com período
+            rc_usleep(testePeriodo);
+        }
+        else
+        {
+            perror("DEU RUIM RAPAZ!! PROCESSAAAAMENTO ...\n");
+        }
     }
     rc_mpu_power_off();
     fflush(stdout);
