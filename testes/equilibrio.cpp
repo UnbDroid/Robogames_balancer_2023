@@ -12,6 +12,8 @@
 #include "ros/ros.h"
 #include "std_msgs/Float32.h"
 #include "std_msgs/Float32MultiArray.h"
+#include <rc/time.h>
+#include <inttypes.h>
 
 #define PERIODO 30000 // TODO microssegundos
 
@@ -21,7 +23,7 @@ float setpoint = 0;
 float measurement = 0;
 float referencia = 0;
 int tempo = 0;
-
+uint64_t ultimoCiclo = 0;
 
 float somatorio_error = 0;
 
@@ -30,14 +32,13 @@ int running;
 float Kp = 0.3;
 float Ki = 0.000001;
 
-
 static void __signal_handler(__attribute__((unused)) int dummy)
 {
     running = 0;
     return;
 }
 
-unsigned int micros()
+unsigned long int micros()
 {
     struct timespec t;
     clock_gettime(CLOCK_MONOTONIC_RAW, &t); // change CLOCK_MONOTONIC_RAW to CLOCK_MONOTONIC on non linux computers
@@ -61,12 +62,14 @@ int main(int argc, char *argv[])
 
     ros::Publisher chatter_pub = n.advertise<std_msgs::Float32>("referencia", 10);
 
-    ros::Subscriber sub = n.subscribe("angle", 1000, chatterCallback);
+    ros::Subscriber sub = n.subscribe("angle", 10, chatterCallback);
 
-    while (running)
+    ros::Rate rate(50);
+
+    // ultimoCiclo = rc_nanos_since_boot()/1000;
+
+    while (ros::ok())
     {
-
-        tempo = micros();
 
         // Controle
         error = setpoint - measurement;
@@ -80,19 +83,30 @@ int main(int argc, char *argv[])
         msg.data = referencia;
 
         chatter_pub.publish(msg);
+        ROS_INFO("%f", msg.data);
+
+        // uint64_t agora = rc_nanos_since_boot();
+
+        // if(agora - ultimoCiclo > PERIODO){
+        //     printf("Ciclo dura mais que período: agora(%lu) - ultimoCiclo(%lu) = %ld > PERIODO(%lu)\n",
+        //     agora, ultimoCiclo, agora-ultimoCiclo, PERIODO);
+
+        // }
+
+        // if(ultimoCiclo > agora){
+        //     printf("Último ciclo maior que agora: ultimoCiclo(%lu) > agora(%lu) \n",
+        //     agora, ultimoCiclo, agora-ultimoCiclo, PERIODO);
+        // }
+
+        // while(agora - ultimoCiclo < PERIODO)
+        // {
+        //     rc_usleep(1);
+        //     agora = rc_nanos_since_boot();
+        // }
+
+        // ultimoCiclo = agora;
         ros::spinOnce();
-
-        // Lidando com período
-        int testePeriodo = PERIODO - (micros() - tempo);
-
-        if (testePeriodo > 0)
-        {
-            // Lidando com período
-            rc_usleep(testePeriodo);
-        }
-        else
-        {
-            perror("DEU RUIM RAPAZ!! PROCESSAAAAMENTO ...\n");
-        }
+        rate.sleep();
+        // printf("agora:%u ns\n", agora);
     }
 }

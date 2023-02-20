@@ -13,8 +13,9 @@
 #define I2C_BUS 2
 #define GPIO_INT_PIN_CHIP 3
 #define GPIO_INT_PIN_PIN 21
-#define SAMPLE_RATE_HZ 200
+#define SAMPLE_RATE_HZ 100
 #define PERIODO 30000 // TODO microssegundos
+#define PUBLISH_RATE_HZ 5
 
 int tempo = 0;
 
@@ -38,10 +39,17 @@ static void __signal_handler(__attribute__((unused)) int dummy)
 
 void dmp_callback(void)
 {
-    std_msgs::Float32 msg;
-    msg.data = (data.dmp_TaitBryan[TB_ROLL_Y] * RAD_TO_DEG);
-    pub.publish(msg);
-    // ROS_INFO("%f", msg.data);
+    static ros::Time last_publish_time = ros::Time::now();
+
+    ros::Time current_time = ros::Time::now();
+    if ((current_time - last_publish_time).toSec() >= 1.0 / PUBLISH_RATE_HZ)
+    {
+        std_msgs::Float32 msg;
+        msg.data = (data.dmp_TaitBryan[TB_ROLL_Y] * RAD_TO_DEG);
+        pub.publish(msg);
+        ROS_INFO("%f", msg.data);
+        last_publish_time = current_time;
+    }
 }
 
 int main(int argc, char *argv[])
@@ -49,6 +57,7 @@ int main(int argc, char *argv[])
     ros::init(argc, argv, "Imu");
     ros::NodeHandle n;
     pub = n.advertise<std_msgs::Float32>("angle", 10);
+    ros::Rate rate(PUBLISH_RATE_HZ);
 
     signal(SIGINT, __signal_handler);
     running = 1;
@@ -76,22 +85,14 @@ int main(int argc, char *argv[])
 
     while (ros::ok())
     {
-        tempo = micros();
+        // usleep(1000);
 
         ros::spinOnce();
 
-        int testePeriodo = PERIODO - (micros() - tempo);
-
-        if (testePeriodo > 0)
-        {
-            // Lidando com período
-            rc_usleep(testePeriodo);
-        }
-        else
-        {
-            perror("DEU RUIM RAPAZ!! PROCESSAAAAMENTO ...\n");
-        }
+        rate.sleep();
     }
+
+    rc_mpu_set_dmp_callback(NULL);
     rc_mpu_power_off();
     fflush(stdout);
 }

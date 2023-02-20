@@ -39,6 +39,7 @@
 #define GPIO_PIN_3_20 20
 
 #define PERIODO 30000 // TODO microssegundos
+#define PUBLISH_RATE_HZ 5
 
 // Variáveis ----------------------------------------------------------4-----------------------------------
 
@@ -204,16 +205,22 @@ static void __signal_handler(__attribute__((unused)) int dummy)
 
 void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
 {
-    float teste = msg->data;
-    if (teste > -1.0 && teste < 1.0)
+    static ros::Time last_publish_time = ros::Time::now();
+
+    ros::Time current_time = ros::Time::now();
+    if ((current_time - last_publish_time).toSec() >= 1.0 / PUBLISH_RATE_HZ)
     {
-        velocidade_referencia = 0;
-        // ROS_INFO("Escutei velocidade referencia entre -1.0 e 1.0: %f",velocidade_referencia);
-    }
-    else
-    {
-        velocidade_referencia = teste;
-        // ROS_INFO("Escutei velocidade referencia: %f", velocidade_referencia);
+        float teste = msg->data;
+        if (teste > -1.0 && teste < 1.0)
+        {
+            velocidade_referencia = 0;
+            ROS_INFO("Escutei velocidade referencia entre -1.0 e 1.0: %f", velocidade_referencia);
+        }
+        else
+        {
+            velocidade_referencia = teste;
+            ROS_INFO("Escutei velocidade referencia: %f", velocidade_referencia);
+        }
     }
 }
 
@@ -250,9 +257,11 @@ int main(int argc, char *argv[])
 
     ros::Subscriber sub = n.subscribe("referencia", 1000, chatterCallback);
 
+    ros::Rate rate(PUBLISH_RATE_HZ);
+
     int i = 0;
 
-    while (running)
+    while (ros::ok())
     {
         float multiplicacaoDireita = velocidade_referencia_old * velocidade_referencia;
         if (multiplicacaoDireita <= 0.0)
@@ -271,7 +280,7 @@ int main(int argc, char *argv[])
 
         // velocidade_referencia_esquerda_old = velocidade_referencia_esquerda;
 
-        tempo = micros();
+        // tempo = micros();
 
         // if ((i++) * PERIODO < 1000000)
         // {
@@ -360,19 +369,20 @@ int main(int argc, char *argv[])
         // }
 
         ros::spinOnce();
+        rate.sleep();
 
-        int testePeriodo = PERIODO - (micros() - tempo);
-        printf("periodo: %d\n", testePeriodo);
+        // int testePeriodo = PERIODO - (micros() - tempo);
+        // printf("periodo: %d\n", testePeriodo);
 
-        if (testePeriodo > 0)
-        {
-            // Lidando com período
-            rc_usleep(testePeriodo);
-        }
-        else
-        {
-            perror("DEU RUIM RAPAZ!! PROCESSAAAAMENTO ...\n");
-        }
+        // if (testePeriodo > 0)
+        // {
+        //     // Lidando com período
+        //     rc_usleep(testePeriodo);
+        // }
+        // else
+        // {
+        //     perror("DEU RUIM RAPAZ!! PROCESSAAAAMENTO ...\n");
+        // }
     }
 
     rc_cleanup();
