@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
         msg.data = referencia;
 
         chatter_pub.publish(msg);
-        ROS_INFO("%f", msg.data);
+        // ROS_INFO("%f", msg.data);
 
         // uint64_t agora = rc_nanos_since_boot();
 

@@ -25,10 +25,6 @@
 #define POT_MAX_DIREITA 1
 #define POT_MIN_ESQUERDA 0.01f
 #define POT_MIN_DIREITA 0.01f
-// #define Kp_esquerda 2.0f
-// #define Ki_esquerda 0.2f
-// #define Kp_direita 1.5f
-// #define Ki_direita 0.18f
 
 #define GPS_HEADER_PIN_PWM_DIREITA_3 2
 #define GPS_HEADER_PIN_PWM_ESQUERDA_4 3
@@ -88,6 +84,10 @@ int saturadoEsquerdo = 0;
 
 float velocidade_direita_old = 0;
 float velocidade_esquerda_old = 0;
+
+float taxa_desaceleracao = 0.1; // Ajuste de acordo com a necessidade
+float velocidade_maxima = 3.0;  // Ajuste de acordo com a necessidade
+float velocidade_referencia_desejada = 0.0;
 
 void motorEsquerda(float potEsquerda)
 {
@@ -203,6 +203,24 @@ static void __signal_handler(__attribute__((unused)) int dummy)
     return;
 }
 
+// float atualizar_velocidade_referencia(float velocidade_referencia_atual, float velocidade_referencia_desejada, float taxa_desaceleracao, float velocidade_maxima) {
+//   if (velocidade_referencia_atual > velocidade_referencia_desejada) {
+//     velocidade_referencia_desejada += taxa_desaceleracao;
+//     if (velocidade_referencia_desejada < 0.0) {
+//       velocidade_referencia_desejada = 0.0;
+//     }
+//   } else if (velocidade_referencia_atual < velocidade_referencia_desejada) {
+//     velocidade_referencia_desejada -= taxa_desaceleracao;
+//     if (velocidade_referencia_desejada < 0.0) {
+//       velocidade_referencia_desejada = 0.0;
+//     }
+//   }
+//   if (velocidade_referencia_desejada > velocidade_maxima) {
+//     velocidade_referencia_desejada = velocidade_maxima;
+//   }
+//   return velocidade_referencia_desejada;
+// }
+
 void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
 {
     static ros::Time last_publish_time = ros::Time::now();
@@ -211,15 +229,17 @@ void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
     if ((current_time - last_publish_time).toSec() >= 1.0 / PUBLISH_RATE_HZ)
     {
         float teste = msg->data;
+        // velocidade_referencia = teste;
         if (teste > -1.0 && teste < 1.0)
         {
             velocidade_referencia = 0;
-            ROS_INFO("Escutei velocidade referencia entre -1.0 e 1.0: %f", velocidade_referencia);
+            // ROS_INFO("Escutei velocidade referencia entre -1.0 e 1.0: %f", velocidade_referencia);
         }
         else
         {
             velocidade_referencia = teste;
-            ROS_INFO("Escutei velocidade referencia: %f", velocidade_referencia);
+            // velocidade_referencia_desejada = atualizar_velocidade_referencia(velocidade_referencia, velocidade_referencia_desejada, taxa_desaceleracao, velocidade_maxima);
+            // ROS_INFO("Escutei velocidade referencia: %f", velocidade_referencia);
         }
     }
 }
@@ -253,7 +273,7 @@ int main(int argc, char *argv[])
 
     ros::NodeHandle n;
 
-    ros::Publisher chatter_pub = n.advertise<std_msgs::Float32MultiArray>("chatter", 10);
+    // ros::Publisher chatter_pub = n.advertise<std_msgs::Float32MultiArray>("chatter", 10);
 
     ros::Subscriber sub = n.subscribe("referencia", 1000, chatterCallback);
 
@@ -272,54 +292,22 @@ int main(int argc, char *argv[])
 
         velocidade_referencia_old = velocidade_referencia;
 
-        // float multiplicacaoEsquerda = velocidade_referencia_esquerda_old * velocidade_referencia_esquerda;
-        // if (multiplicacaoEsquerda <= 0.0)
-        // {
-        //     somatorio_erro_esquerda = 0;
-        // }
-
-        // velocidade_referencia_esquerda_old = velocidade_referencia_esquerda;
-
         // tempo = micros();
-
-        // if ((i++) * PERIODO < 1000000)
-        // {
-        //     velocidade_referencia = 1.5;
-        //     rc_led_set(RC_LED_BAT25, 1);
-        // }
-        // else if (i * PERIODO < 2000000)
-        // {
-        //     velocidade_referencia = -1.5;
-        //     rc_led_set(RC_LED_BAT25, 0);
-        // }
-        // else
-        // {
-        //     i = 0;
-        // }
 
         // Inputs
 
-        encoder0Pos = encoder(2);
-        encoder1Pos = encoder(3);
+        encoder0Pos = encoder(3);
+        encoder1Pos = encoder(2);
 
-        // printf("Encoder: %f, %f \n", encoder0Pos, encoder1Pos);
+        printf("Encoder: %d, %d \n", encoder0Pos, encoder1Pos);
 
         voltas_esquerda = -encoder0Pos / (double)4096;
-        voltas_direita = encoder1Pos / (double)4096;
+        voltas_direita = -encoder1Pos / (double)4096;
 
-        // printf("Voltas: %f, %f \n", voltas_direita, voltas_esquerda);
+        printf("Voltas: %f, %f \n", voltas_direita, voltas_esquerda);
 
         velocidade_esquerda = 1000000 * (voltas_esquerda - voltas_esquerda_anterior) / ((double)(PERIODO));
         velocidade_direita = 1000000 * (voltas_direita - voltas_direita_anterior) / ((double)(PERIODO));
-
-        if (velocidade_direita >= -4.0 && velocidade_direita <= 4.0)
-        {
-            velocidade_direita_old = velocidade_direita;
-        }
-        else
-        {
-            velocidade_direita = velocidade_direita_old;
-        }
 
         if (velocidade_esquerda >= -4.0 && velocidade_esquerda <= 4.0)
         {
@@ -330,43 +318,41 @@ int main(int argc, char *argv[])
             velocidade_esquerda = velocidade_esquerda_old;
         }
 
+        if (velocidade_direita >= -4.0 && velocidade_direita <= 4.0)
+        {
+            velocidade_direita_old = velocidade_direita;
+        }
+        else
+        {
+            velocidade_direita = velocidade_direita_old;
+        }
+
         voltas_esquerda_anterior = voltas_esquerda;
         voltas_direita_anterior = voltas_direita;
 
         // Controle
-        erro_direita = velocidade_referencia - velocidade_direita;
         erro_esquerda = velocidade_referencia - velocidade_esquerda;
-
-        if (saturadoDireito == 0)
-        {
-            somatorio_erro_direita += erro_direita;
-        }
+        erro_direita = velocidade_referencia - velocidade_direita;
 
         if (saturadoEsquerdo == 0)
         {
             somatorio_erro_esquerda += erro_esquerda;
         }
 
-        potencia_motor_direita = erro_direita * Kp_direita + (somatorio_erro_direita * Ki_direita) * PERIODO;
+        if (saturadoDireito == 0)
+        {
+            somatorio_erro_direita += erro_direita;
+        }
+
         potencia_motor_esquerda = erro_esquerda * Kp_esquerda + (somatorio_erro_esquerda * Ki_esquerda) * PERIODO;
+        potencia_motor_direita = erro_direita * Kp_direita + (somatorio_erro_direita * Ki_direita) * PERIODO;
 
         // Output
-        motorDireita(potencia_motor_direita);
         motorEsquerda(potencia_motor_esquerda);
+        motorDireita(potencia_motor_direita);
 
         // printf("Esquerda: %f, %f, %f, \n", velocidade_esquerda, somatorio_erro_esquerda, velocidade_referencia);
         // printf("Direita: %f, %f, %f, \n", velocidade_direita, somatorio_erro_direita, velocidade_referencia);
-
-        // std_msgs::Float32MultiArray msg;
-        // msg.data.push_back(velocidade_esquerda);
-        // msg.data.push_back(somatorio_erro_esquerda);
-        // msg.data.push_back(velocidade_referencia);
-        // msg.data.push_back(erro_esquerda);
-
-        // if (velocidade_direita > -3.0 && velocidade_direita < 3.0)
-        // {
-        //     chatter_pub.publish(msg);
-        // }
 
         ros::spinOnce();
         rate.sleep();
