@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
 
     ros::NodeHandle n;
 
-    // ros::Publisher chatter_pub = n.advertise<std_msgs::Float32MultiArray>("chatter", 10);
+    ros::Publisher chatter_pub = n.advertise<std_msgs::Float32MultiArray>("chatter", 10);
 
     ros::Subscriber sub = n.subscribe("referencia", 1000, chatterCallback);
 
@@ -292,7 +292,30 @@ int main(int argc, char *argv[])
 
         velocidade_referencia_old = velocidade_referencia;
 
+        // float multiplicacaoEsquerda = velocidade_referencia_esquerda_old * velocidade_referencia_esquerda;
+        // if (multiplicacaoEsquerda <= 0.0)
+        // {
+        //     somatorio_erro_esquerda = 0;
+        // }
+
+        // velocidade_referencia_esquerda_old = velocidade_referencia_esquerda;
+
         // tempo = micros();
+
+        // if ((i++) * PERIODO < 1000000)
+        // {
+        //     velocidade_referencia = 1.5;
+        //     rc_led_set(RC_LED_BAT25, 1);
+        // }
+        // else if (i * PERIODO < 2000000)
+        // {
+        //     velocidade_referencia = -1.5;
+        //     rc_led_set(RC_LED_BAT25, 0);
+        // }
+        // else
+        // {
+        //     i = 0;
+        // }
 
         // Inputs
 
@@ -353,6 +376,17 @@ int main(int argc, char *argv[])
 
         // printf("Esquerda: %f, %f, %f, \n", velocidade_esquerda, somatorio_erro_esquerda, velocidade_referencia);
         // printf("Direita: %f, %f, %f, \n", velocidade_direita, somatorio_erro_direita, velocidade_referencia);
+
+        // std_msgs::Float32MultiArray msg;
+        // msg.data.push_back(velocidade_esquerda);
+        // msg.data.push_back(somatorio_erro_esquerda);
+        // msg.data.push_back(velocidade_referencia);
+        // msg.data.push_back(erro_esquerda);
+
+        // if (velocidade_direita > -3.0 && velocidade_direita < 3.0)
+        // {
+        //     chatter_pub.publish(msg);
+        // }
 
         ros::spinOnce();
         rate.sleep();
