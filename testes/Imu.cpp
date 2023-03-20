@@ -15,7 +15,7 @@
 #define GPIO_INT_PIN_PIN 21
 #define SAMPLE_RATE_HZ 100
 #define PERIODO 30000 // TODO microssegundos
-#define PUBLISH_RATE_HZ 5
+#define PUBLISH_RATE_HZ 80
 
 int tempo = 0;
 
@@ -82,6 +82,8 @@ int main(int argc, char *argv[])
         return -1;
     }
     rc_mpu_set_dmp_callback(dmp_callback);
+
+    printf("IMU started");
 
     while (ros::ok())
     {

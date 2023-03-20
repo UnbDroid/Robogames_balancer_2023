@@ -35,7 +35,7 @@
 #define GPIO_PIN_3_20 20
 
 #define PERIODO 30000 // TODO microssegundos
-#define PUBLISH_RATE_HZ 5
+#define PUBLISH_RATE_HZ 80
 
 // Variáveis ----------------------------------------------------------4-----------------------------------
 
@@ -230,14 +230,14 @@ void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
     {
         float teste = msg->data;
         // velocidade_referencia = teste;
-        if (teste > -1.0 && teste < 1.0)
+        if (teste > -0.2 && teste < 0.2)
         {
             velocidade_referencia = 0;
             // ROS_INFO("Escutei velocidade referencia entre -1.0 e 1.0: %f", velocidade_referencia);
         }
         else
         {
-            velocidade_referencia = teste;
+            velocidade_referencia = -teste;
             // velocidade_referencia_desejada = atualizar_velocidade_referencia(velocidade_referencia, velocidade_referencia_desejada, taxa_desaceleracao, velocidade_maxima);
             // ROS_INFO("Escutei velocidade referencia: %f", velocidade_referencia);
         }
@@ -273,13 +273,15 @@ int main(int argc, char *argv[])
 
     ros::NodeHandle n;
 
-    ros::Publisher chatter_pub = n.advertise<std_msgs::Float32MultiArray>("chatter", 10);
+    // ros::Publisher chatter_pub = n.advertise<std_msgs::Float32MultiArray>("chatter", 10);
 
     ros::Subscriber sub = n.subscribe("referencia", 1000, chatterCallback);
 
     ros::Rate rate(PUBLISH_RATE_HZ);
 
     int i = 0;
+
+    printf("Velocidade Started");
 
     while (ros::ok())
     {
@@ -322,12 +324,12 @@ int main(int argc, char *argv[])
         encoder0Pos = encoder(3);
         encoder1Pos = encoder(2);
 
-        printf("Encoder: %d, %d \n", encoder0Pos, encoder1Pos);
+        // printf("Encoder: %d, %d \n", encoder0Pos, encoder1Pos);
 
         voltas_esquerda = -encoder0Pos / (double)4096;
         voltas_direita = -encoder1Pos / (double)4096;
 
-        printf("Voltas: %f, %f \n", voltas_direita, voltas_esquerda);
+        // printf("Voltas: %f, %f \n", voltas_direita, voltas_esquerda);
 
         velocidade_esquerda = 1000000 * (voltas_esquerda - voltas_esquerda_anterior) / ((double)(PERIODO));
         velocidade_direita = 1000000 * (voltas_direita - voltas_direita_anterior) / ((double)(PERIODO));
@@ -374,8 +376,14 @@ int main(int argc, char *argv[])
         motorEsquerda(potencia_motor_esquerda);
         motorDireita(potencia_motor_direita);
 
+        printf("Potência Esquerda: %f, Velocidade esquerda: %f, encoder esquerda: %d, referência: %f \n", potencia_motor_esquerda, velocidade_esquerda, encoder0Pos, velocidade_referencia);
+        printf("Potência Direita: %f, Velocidade direita: %f, encoder direita: %d, referência: %f \n", potencia_motor_direita, velocidade_direita, encoder1Pos, velocidade_referencia);
+        // printf("Erro Direita: %f, Somatório do Erro Direita: %f, referência: %f \n", erro_direita, somatorio_erro_direita, velocidade_referencia);
+        // printf("Erro Esquerda: %f, Somatório do Erro Esquerda: %f, referência: %f \n", erro_esquerda, somatorio_erro_esquerda, velocidade_referencia);
+
         // printf("Esquerda: %f, %f, %f, \n", velocidade_esquerda, somatorio_erro_esquerda, velocidade_referencia);
         // printf("Direita: %f, %f, %f, \n", velocidade_direita, somatorio_erro_direita, velocidade_referencia);
+        // printf("Direita: %f \n", velocidade_referencia);
 
         // std_msgs::Float32MultiArray msg;
         // msg.data.push_back(velocidade_esquerda);
