@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
     ros::Rate rate(80);
 
     float Kp = 0;
-    n.param<float>("Kp", Kp, 0.6f);
+    n.param<float>("Kp", Kp, 0.1f);
 
     float Ki = 0;
     n.param<float>("Ki", Ki, 0.0f);
@@ -111,12 +111,12 @@ int main(int argc, char *argv[])
         
 
         //TESTE DE PLOT
-        std_msgs::Float32MultiArray msg;
-        msg.data.push_back(measurement);
-        msg.data.push_back(referencia/100000);
-        chatter_pub.publish(msg);
+        // std_msgs::Float32MultiArray msg;
+        // msg.data.push_back(measurement);
+        // msg.data.push_back(referencia/100000);
+        // chatter_pub.publish(msg);
 
-        // printf("%f, %f\n", measurement, referencia);
+        printf("%f, %f\n", measurement, referencia);
 
         rate.sleep();
 

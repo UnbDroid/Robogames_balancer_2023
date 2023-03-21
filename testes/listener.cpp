@@ -14,10 +14,12 @@
 #include <sys/time.h>
 #include "ros/ros.h"
 #include "std_msgs/Float32.h"
+#include "std_msgs/Float64.h"
 #include "std_msgs/Float32MultiArray.h"
 
 // Calculo de velocidade
-#define pi 3.14159265359f
+#define PI 3.14159265359f
+#define RAIO_RODA 0.0575f //5.75cm
 
 // Controle de velocidade
 #define limiar_erro_velocidade 0.07f
@@ -88,6 +90,8 @@ float velocidade_esquerda_old = 0;
 float taxa_desaceleracao = 0.1; // Ajuste de acordo com a necessidade
 float velocidade_maxima = 3.0;  // Ajuste de acordo com a necessidade
 float velocidade_referencia_desejada = 0.0;
+
+float comprimento_roda = 2 * PI * RAIO_RODA;
 
 void motorEsquerda(float potEsquerda)
 {
@@ -183,10 +187,6 @@ int encoder(int canal)
     return encoder;
 }
 
-void controleAdaptativoVelocidade()
-{
-}
-
 // Setup e Loop principais
 //-----------------------------------------------------------------------------------------------------------
 
@@ -244,6 +244,15 @@ void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
     }
 }
 
+double voltasParaMetros(double voltas)
+{
+    return voltas * comprimento_roda;
+}
+float velocidadeParaMetros(float velocidade)
+{
+    return velocidade * comprimento_roda;
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -274,6 +283,8 @@ int main(int argc, char *argv[])
     ros::NodeHandle n;
 
     // ros::Publisher chatter_pub = n.advertise<std_msgs::Float32MultiArray>("chatter", 10);
+    ros::Publisher velocidade = n.advertise<std_msgs::Float32>("velocidade", 10);
+    ros::Publisher posicao = n.advertise<std_msgs::Float64>("posicao", 10);
 
     ros::Subscriber sub = n.subscribe("referencia", 1000, chatterCallback);
 
@@ -294,31 +305,6 @@ int main(int argc, char *argv[])
 
         velocidade_referencia_old = velocidade_referencia;
 
-        // float multiplicacaoEsquerda = velocidade_referencia_esquerda_old * velocidade_referencia_esquerda;
-        // if (multiplicacaoEsquerda <= 0.0)
-        // {
-        //     somatorio_erro_esquerda = 0;
-        // }
-
-        // velocidade_referencia_esquerda_old = velocidade_referencia_esquerda;
-
-        // tempo = micros();
-
-        // if ((i++) * PERIODO < 1000000)
-        // {
-        //     velocidade_referencia = 1.5;
-        //     rc_led_set(RC_LED_BAT25, 1);
-        // }
-        // else if (i * PERIODO < 2000000)
-        // {
-        //     velocidade_referencia = -1.5;
-        //     rc_led_set(RC_LED_BAT25, 0);
-        // }
-        // else
-        // {
-        //     i = 0;
-        // }
-
         // Inputs
 
         encoder0Pos = encoder(3);
@@ -326,34 +312,29 @@ int main(int argc, char *argv[])
 
         // printf("Encoder: %d, %d \n", encoder0Pos, encoder1Pos);
 
+        voltas_esquerda_anterior = voltas_esquerda;
+        voltas_direita_anterior = voltas_direita;
+
         voltas_esquerda = -encoder0Pos / (double)4096;
-        voltas_direita = -encoder1Pos / (double)4096;
+        voltas_direita = encoder1Pos / (double)4096;
+
+        velocidade_esquerda_old = velocidade_esquerda;
+        velocidade_direita_old = velocidade_direita;
 
         // printf("Voltas: %f, %f \n", voltas_direita, voltas_esquerda);
 
         velocidade_esquerda = 1000000 * (voltas_esquerda - voltas_esquerda_anterior) / ((double)(PERIODO));
         velocidade_direita = 1000000 * (voltas_direita - voltas_direita_anterior) / ((double)(PERIODO));
 
-        if (velocidade_esquerda >= -4.0 && velocidade_esquerda <= 4.0)
-        {
-            velocidade_esquerda_old = velocidade_esquerda;
-        }
-        else
+        if (!(velocidade_esquerda >= -2.5 && velocidade_esquerda <= 2.5))
         {
             velocidade_esquerda = velocidade_esquerda_old;
         }
 
-        if (velocidade_direita >= -4.0 && velocidade_direita <= 4.0)
-        {
-            velocidade_direita_old = velocidade_direita;
-        }
-        else
+        if (!(velocidade_direita >= -2.5 && velocidade_direita <= 2.5))
         {
             velocidade_direita = velocidade_direita_old;
         }
-
-        voltas_esquerda_anterior = voltas_esquerda;
-        voltas_direita_anterior = voltas_direita;
 
         // Controle
         erro_esquerda = velocidade_referencia - velocidade_esquerda;
@@ -376,8 +357,8 @@ int main(int argc, char *argv[])
         motorEsquerda(potencia_motor_esquerda);
         motorDireita(potencia_motor_direita);
 
-        printf("Potência Esquerda: %f, Velocidade esquerda: %f, encoder esquerda: %d, referência: %f \n", potencia_motor_esquerda, velocidade_esquerda, encoder0Pos, velocidade_referencia);
-        printf("Potência Direita: %f, Velocidade direita: %f, encoder direita: %d, referência: %f \n", potencia_motor_direita, velocidade_direita, encoder1Pos, velocidade_referencia);
+        // printf("Potência Esquerda: %f, Velocidade esquerda: %f, encoder esquerda: %d, referência: %f \n", potencia_motor_esquerda, velocidade_esquerda, encoder0Pos, velocidade_referencia);
+        // printf("Potência Direita: %f, Velocidade direita: %f, encoder direita: %d, referência: %f \n", potencia_motor_direita, velocidade_direita, encoder1Pos, velocidade_referencia);
         // printf("Erro Direita: %f, Somatório do Erro Direita: %f, referência: %f \n", erro_direita, somatorio_erro_direita, velocidade_referencia);
         // printf("Erro Esquerda: %f, Somatório do Erro Esquerda: %f, referência: %f \n", erro_esquerda, somatorio_erro_esquerda, velocidade_referencia);
 
@@ -390,6 +371,23 @@ int main(int argc, char *argv[])
         // msg.data.push_back(somatorio_erro_esquerda);
         // msg.data.push_back(velocidade_referencia);
         // msg.data.push_back(erro_esquerda);
+
+        std_msgs::Float64 posicaoMsg;
+        double voltas_media = (voltas_direita + voltas_esquerda) / 2;
+        double voltas_metros = voltasParaMetros(voltas_media);
+        posicaoMsg.data = voltas_metros;
+        posicao.publish(posicaoMsg);
+
+        std_msgs::Float32 velocidadeMsg;
+        float velocidade_media = (velocidade_direita + velocidade_esquerda) / 2;
+        float velocidade_metros = velocidadeParaMetros(velocidade_media);
+        velocidadeMsg.data = velocidade_metros;
+        velocidade.publish(velocidadeMsg);
+
+
+        printf("Potência Esquerda: %f, Velocidade esquerda: %f, encoder esquerda: %d, referência: %f \n", potencia_motor_esquerda, velocidade_esquerda, encoder0Pos, velocidade_referencia);
+        printf("Potência Direita: %f, Velocidade direita: %f, encoder direita: %d, referência: %f \n", potencia_motor_direita, velocidade_direita, encoder1Pos, velocidade_referencia);
+        printf("velocidade metros: %f, posicao metros: %f \n", velocidade_metros, voltas_metros);
 
         // if (velocidade_direita > -3.0 && velocidade_direita < 3.0)
         // {
