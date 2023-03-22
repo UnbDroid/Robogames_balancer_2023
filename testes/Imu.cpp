@@ -13,39 +13,32 @@
 #define I2C_BUS 2
 #define GPIO_INT_PIN_CHIP 3
 #define GPIO_INT_PIN_PIN 21
-#define SAMPLE_RATE_HZ 100
+#define SAMPLE_RATE_HZ 50
 #define PERIODO 30000 // TODO microssegundos
-#define PUBLISH_RATE_HZ 80
+#define PUBLISH_RATE_HZ 50
 
-int tempo = 0;
+static rc_mpu_data_t mpu_data;
+static rc_mpu_data_t mpu_data_theta;
 
-static int running = 0;
-static rc_mpu_data_t data;
+ros::Publisher pub, pub_thetha_ponto;
 
-ros::Publisher pub;
-
-static void __signal_handler(__attribute__((unused)) int dummy)
-{
-    running = 0;
-    return;
-}
-
-void dmp_callback(void)
+static void dmp_callback(void)
 {
     static ros::Time last_publish_time = ros::Time::now();
 
     ros::Time current_time = ros::Time::now();
-    if ((current_time - last_publish_time).toSec() >= 1.0 / PUBLISH_RATE_HZ)
+
+    ros::Duration dt = current_time - last_publish_time;
+    if ((dt).toSec() >= 1.0 / PUBLISH_RATE_HZ)
     {
         std_msgs::Float32 msg;
         // msg.data = (data.dmp_TaitBryan[TB_ROLL_Y] * RAD_TO_DEG);
-        msg.data = (data.dmp_TaitBryan[TB_ROLL_Y]);
-
+        msg.data = (mpu_data.dmp_TaitBryan[TB_ROLL_Y]);
         pub.publish(msg);
 
         // ROS_INFO("%f", msg.data);
-        last_publish_time = current_time;
     }
+    last_publish_time = current_time;
 }
 
 int main(int argc, char *argv[])
@@ -53,10 +46,10 @@ int main(int argc, char *argv[])
     ros::init(argc, argv, "Imu");
     ros::NodeHandle n;
     pub = n.advertise<std_msgs::Float32>("angle", 10);
+    pub_thetha_ponto = n.advertise<std_msgs::Float32>("angle_theta_ponto", 10);
     ros::Rate rate(PUBLISH_RATE_HZ);
 
-    signal(SIGINT, __signal_handler);
-    running = 1;
+
 
     rc_mpu_config_t conf = rc_mpu_default_config();
     conf.i2c_bus = I2C_BUS;
@@ -64,6 +57,7 @@ int main(int argc, char *argv[])
     conf.gpio_interrupt_pin = GPIO_INT_PIN_PIN;
     conf.dmp_sample_rate = SAMPLE_RATE_HZ;
     conf.orient = ORIENTATION_Y_UP;
+
     // if gyro isn't calibrated, run the calibration routine
     if (!rc_mpu_is_gyro_calibrated())
     {
@@ -72,15 +66,39 @@ int main(int argc, char *argv[])
         rc_mpu_calibrate_gyro_routine(conf);
     }
 
-    if (rc_mpu_initialize_dmp(&data, conf))
+        if(rc_mpu_initialize(&mpu_data_theta, conf)){
+                fprintf(stderr,"rc_mpu_initialize_failed\n");
+                return -1;
+        }
+
+    if (rc_mpu_initialize_dmp(&mpu_data, conf))
     {
-        printf("rc_mpu_initialize_failed\n");
+        printf("rc_mpu_initialize_dmp_failed\n");
         return -1;
     }
-    rc_mpu_set_dmp_callback(dmp_callback);
+
+    rc_mpu_set_dmp_callback(&dmp_callback);
 
     while (ros::ok())
     {
+        static ros::Time last_publish_time_theta = ros::Time::now();
+
+        ros::Time current_time_theta = ros::Time::now();
+        if ((current_time_theta - last_publish_time_theta).toSec() >= 1.0 / PUBLISH_RATE_HZ)
+        {
+            if (rc_mpu_read_gyro(&mpu_data_theta) < 0)
+            {
+                printf("read gyro data failed\n");
+            }
+
+            std_msgs::Float32 msgThetaPonto;
+            msgThetaPonto.data = (mpu_data_theta.gyro[1] * DEG_TO_RAD);
+            pub_thetha_ponto.publish(msgThetaPonto);
+            // ROS_INFO("%f", msgThetaPonto.data);
+        }
+
+        last_publish_time_theta = current_time_theta;
+
         ros::spinOnce();
 
         rate.sleep();

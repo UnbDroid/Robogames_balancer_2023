@@ -19,7 +19,7 @@
 
 // Calculo de velocidade
 #define PI 3.14159265359f
-#define RAIO_RODA 0.0575f //5.75cm
+#define RAIO_RODA 0.0575f // 5.75cm
 
 // Controle de velocidade
 #define limiar_erro_velocidade 0.07f
@@ -37,7 +37,7 @@
 #define GPIO_PIN_3_20 20
 
 #define PERIODO 30000 // TODO microssegundos
-#define PUBLISH_RATE_HZ 80
+#define PUBLISH_RATE_HZ 50
 
 // Variáveis ----------------------------------------------------------4-----------------------------------
 
@@ -223,11 +223,6 @@ static void __signal_handler(__attribute__((unused)) int dummy)
 
 void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
 {
-    static ros::Time last_publish_time = ros::Time::now();
-
-    ros::Time current_time = ros::Time::now();
-    if ((current_time - last_publish_time).toSec() >= 1.0 / PUBLISH_RATE_HZ)
-    {
         float teste = msg->data;
         // velocidade_referencia = teste;
         if (teste > -0.2 && teste < 0.2)
@@ -241,7 +236,6 @@ void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
             // velocidade_referencia_desejada = atualizar_velocidade_referencia(velocidade_referencia, velocidade_referencia_desejada, taxa_desaceleracao, velocidade_maxima);
             // ROS_INFO("Escutei velocidade referencia: %f", velocidade_referencia);
         }
-    }
 }
 
 double voltasParaMetros(double voltas)
@@ -372,22 +366,27 @@ int main(int argc, char *argv[])
         // msg.data.push_back(velocidade_referencia);
         // msg.data.push_back(erro_esquerda);
 
-        std_msgs::Float64 posicaoMsg;
-        double voltas_media = (voltas_direita + voltas_esquerda) / 2;
-        double voltas_metros = voltasParaMetros(voltas_media);
-        posicaoMsg.data = voltas_metros;
-        posicao.publish(posicaoMsg);
+        static ros::Time last_publish_time = ros::Time::now();
 
-        std_msgs::Float32 velocidadeMsg;
-        float velocidade_media = (velocidade_direita + velocidade_esquerda) / 2;
-        float velocidade_metros = velocidadeParaMetros(velocidade_media);
-        velocidadeMsg.data = velocidade_metros;
-        velocidade.publish(velocidadeMsg);
+        ros::Time current_time = ros::Time::now();
+        if ((current_time - last_publish_time).toSec() >= 1.0 / PUBLISH_RATE_HZ)
+        {
+            std_msgs::Float64 posicaoMsg;
+            double voltas_media = (voltas_direita + voltas_esquerda) / 2;
+            double voltas_metros = voltasParaMetros(voltas_media);
+            posicaoMsg.data = voltas_metros;
+            posicao.publish(posicaoMsg);
 
+            std_msgs::Float32 velocidadeMsg;
+            float velocidade_media = (velocidade_direita + velocidade_esquerda) / 2;
+            float velocidade_metros = velocidadeParaMetros(velocidade_media);
+            velocidadeMsg.data = velocidade_metros;
+            velocidade.publish(velocidadeMsg);
+        }
 
-        printf("Potência Esquerda: %f, Velocidade esquerda: %f, encoder esquerda: %d, referência: %f \n", potencia_motor_esquerda, velocidade_esquerda, encoder0Pos, velocidade_referencia);
-        printf("Potência Direita: %f, Velocidade direita: %f, encoder direita: %d, referência: %f \n", potencia_motor_direita, velocidade_direita, encoder1Pos, velocidade_referencia);
-        printf("velocidade metros: %f, posicao metros: %f \n", velocidade_metros, voltas_metros);
+        // printf("Potência Esquerda: %f, Velocidade esquerda: %f, encoder esquerda: %d, referência: %f \n", potencia_motor_esquerda, velocidade_esquerda, encoder0Pos, velocidade_referencia);
+        // printf("Potência Direita: %f, Velocidade direita: %f, encoder direita: %d, referência: %f \n", potencia_motor_direita, velocidade_direita, encoder1Pos, velocidade_referencia);
+        // printf("velocidade metros: %f, posicao metros: %f \n", velocidade_metros, voltas_metros);
 
         // if (velocidade_direita > -3.0 && velocidade_direita < 3.0)
         // {
