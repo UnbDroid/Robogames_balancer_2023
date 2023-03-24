@@ -1,3 +1,5 @@
+//Includes ------------------------------------------------------------------------------------------------------------------
+
 #include <math.h>
 #include <robotcontrol.h>
 #include <stdio.h>
@@ -10,17 +12,21 @@
 #include <sstream>
 #include "std_msgs/Float32.h"
 
+//Defines ------------------------------------------------------------------------------------------------------------------------------------
+
 #define I2C_BUS 2
 #define GPIO_INT_PIN_CHIP 3
 #define GPIO_INT_PIN_PIN 21
 #define SAMPLE_RATE_HZ 50
-#define PERIODO 30000 // TODO microssegundos
-#define PUBLISH_RATE_HZ 50
+#define PUBLISH_RATE_HZ 70
+#define QUEUE_SIZE 5000
 
 static rc_mpu_data_t mpu_data;
-static rc_mpu_data_t mpu_data_theta;
 
-ros::Publisher pub, pub_thetha_ponto;
+static float prev_angle = 0.0;
+static ros::Time prev_time;
+
+ros::Publisher pub, pub_theta_ponto;
 
 static void dmp_callback(void)
 {
@@ -36,7 +42,25 @@ static void dmp_callback(void)
         msg.data = (mpu_data.dmp_TaitBryan[TB_ROLL_Y]);
         pub.publish(msg);
 
-        // ROS_INFO("%f", msg.data);
+        if (prev_time.isZero())
+        {
+            prev_time = current_time;
+        }
+        else
+        {
+            ros::Duration dt = current_time - prev_time;
+            if (dt.toSec() > 0.0)
+            {
+                float d_angle = msg.data - prev_angle;
+                float angle_derivative = d_angle / dt.toSec();
+
+                std_msgs::Float32 angle_derivative_msg;
+                angle_derivative_msg.data = angle_derivative;
+                pub_theta_ponto.publish(angle_derivative_msg);
+            }
+        }
+        prev_angle = msg.data;
+        prev_time = current_time;
     }
     last_publish_time = current_time;
 }
@@ -45,11 +69,9 @@ int main(int argc, char *argv[])
 {
     ros::init(argc, argv, "Imu");
     ros::NodeHandle n;
-    pub = n.advertise<std_msgs::Float32>("angle", 10);
-    pub_thetha_ponto = n.advertise<std_msgs::Float32>("angle_theta_ponto", 10);
+    pub = n.advertise<std_msgs::Float32>("angle", QUEUE_SIZE);
+    pub_theta_ponto = n.advertise<std_msgs::Float32>("angle_theta_ponto", QUEUE_SIZE);
     ros::Rate rate(PUBLISH_RATE_HZ);
-
-
 
     rc_mpu_config_t conf = rc_mpu_default_config();
     conf.i2c_bus = I2C_BUS;
@@ -66,11 +88,6 @@ int main(int argc, char *argv[])
         rc_mpu_calibrate_gyro_routine(conf);
     }
 
-        if(rc_mpu_initialize(&mpu_data_theta, conf)){
-                fprintf(stderr,"rc_mpu_initialize_failed\n");
-                return -1;
-        }
-
     if (rc_mpu_initialize_dmp(&mpu_data, conf))
     {
         printf("rc_mpu_initialize_dmp_failed\n");
@@ -81,24 +98,6 @@ int main(int argc, char *argv[])
 
     while (ros::ok())
     {
-        static ros::Time last_publish_time_theta = ros::Time::now();
-
-        ros::Time current_time_theta = ros::Time::now();
-        if ((current_time_theta - last_publish_time_theta).toSec() >= 1.0 / PUBLISH_RATE_HZ)
-        {
-            if (rc_mpu_read_gyro(&mpu_data_theta) < 0)
-            {
-                printf("read gyro data failed\n");
-            }
-
-            std_msgs::Float32 msgThetaPonto;
-            msgThetaPonto.data = (mpu_data_theta.gyro[1] * DEG_TO_RAD);
-            pub_thetha_ponto.publish(msgThetaPonto);
-            // ROS_INFO("%f", msgThetaPonto.data);
-        }
-
-        last_publish_time_theta = current_time_theta;
-
         ros::spinOnce();
 
         rate.sleep();

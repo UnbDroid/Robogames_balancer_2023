@@ -1,6 +1,5 @@
 // Includes ------------------------------------------------------------------------------------------------
 
-// Cálculos
 #include <math.h>
 #include <robotcontrol.h>
 #include <stdio.h>
@@ -17,47 +16,46 @@
 #include "std_msgs/Float64.h"
 #include "std_msgs/Float32MultiArray.h"
 
-// Calculo de velocidade
+// Defines ------------------------------------------------------------------------------------------------------------
+
+//Cálculos
 #define PI 3.14159265359f
 #define RAIO_RODA 0.0575f // 5.75cm
+#define PERIODO 30000 // TODO microssegundos
+#define PUBLISH_RATE_HZ 70
+#define QUEUE_SIZE 5000
 
 // Controle de velocidade
-#define limiar_erro_velocidade 0.07f
 #define POT_MAX_ESQUERDA 1
 #define POT_MAX_DIREITA 1
+
 #define POT_MIN_ESQUERDA 0.01f
 #define POT_MIN_DIREITA 0.01f
 
+//Pinagem
 #define GPS_HEADER_PIN_PWM_DIREITA_3 2
 #define GPS_HEADER_PIN_PWM_ESQUERDA_4 3
-#define GPIO_PIN_1_17 17 // Set the GPIO pin for the motor control
-#define GPIO_PIN_1_25 25 // Set the GPIO pin for the motor control
 
-#define GPIO_PIN_3_17 17 // Set the GPIO pin for the motor control
+#define GPIO_PIN_1_17 17 
+#define GPIO_PIN_1_25 25 
+
+#define GPIO_PIN_3_17 17 
 #define GPIO_PIN_3_20 20
-
-#define PERIODO 30000 // TODO microssegundos
-#define PUBLISH_RATE_HZ 50
 
 // Variáveis ----------------------------------------------------------4-----------------------------------
 
 // Encoders
-int encoder0Pos = 0; // esquerda
-int encoder1Pos = 0; // direita
+int encoder0Pos = 0; 
+int encoder1Pos = 0;
 double voltas_esquerda = 0, voltas_esquerda_anterior = 0;
 double voltas_direita = 0, voltas_direita_anterior = 0;
 
-// Cálculo de velocidade
+// Controlador
 float velocidade_esquerda = 0;
 float velocidade_direita = 0;
-int tempo = 0;
-int periodo = 0;
-int tempoOld = 0;
 
-// Driver
-float pot_direita = 0;
-float pot_esquerda = 0;
-float velocidade_Referencia;
+float velocidade_direita_old = 0;
+float velocidade_esquerda_old = 0;
 
 float erro_direita = 0;
 float erro_esquerda = 0;
@@ -65,34 +63,30 @@ float erro_esquerda = 0;
 float velocidade_referencia = 0;
 float velocidade_referencia_old = 0;
 
-float velocidade_referencia_esquerda = 1.5;
-float velocidade_referencia_esquerda_old = 0;
-
 float somatorio_erro_direita = 0;
 float somatorio_erro_esquerda = 0;
 
 float potencia_motor_direita = 0;
 float potencia_motor_esquerda = 0;
 
-int running;
 
+//Constantes do controlador
 float Kp_esquerda = 0.3;
 float Ki_esquerda = 0.000001;
+
 float Kp_direita = 0.3;
 float Ki_direita = 0.000001;
 
 int saturadoDireito = 0;
 int saturadoEsquerdo = 0;
 
-float velocidade_direita_old = 0;
-float velocidade_esquerda_old = 0;
-
-float taxa_desaceleracao = 0.1; // Ajuste de acordo com a necessidade
-float velocidade_maxima = 3.0;  // Ajuste de acordo com a necessidade
-float velocidade_referencia_desejada = 0.0;
-
+//Cálculos
 float comprimento_roda = 2 * PI * RAIO_RODA;
 
+
+//Declração de funções -----------------------------------------------------------------------------------------------------
+
+//Funções dos motores
 void motorEsquerda(float potEsquerda)
 {
     int praTras = 0;
@@ -181,14 +175,15 @@ void motorDireita(float potDireita)
     }
 }
 
+//Função do encoder
 int encoder(int canal)
 {
     int encoder = rc_encoder_eqep_read(canal);
     return encoder;
 }
 
-// Setup e Loop principais
-//-----------------------------------------------------------------------------------------------------------
+
+//Funções de cálculos
 
 unsigned int micros()
 {
@@ -197,96 +192,66 @@ unsigned int micros()
     return t.tv_sec * 1000 + (t.tv_nsec + 500000) / 1000;
 }
 
-static void __signal_handler(__attribute__((unused)) int dummy)
-{
-    running = 0;
-    return;
-}
-
-// float atualizar_velocidade_referencia(float velocidade_referencia_atual, float velocidade_referencia_desejada, float taxa_desaceleracao, float velocidade_maxima) {
-//   if (velocidade_referencia_atual > velocidade_referencia_desejada) {
-//     velocidade_referencia_desejada += taxa_desaceleracao;
-//     if (velocidade_referencia_desejada < 0.0) {
-//       velocidade_referencia_desejada = 0.0;
-//     }
-//   } else if (velocidade_referencia_atual < velocidade_referencia_desejada) {
-//     velocidade_referencia_desejada -= taxa_desaceleracao;
-//     if (velocidade_referencia_desejada < 0.0) {
-//       velocidade_referencia_desejada = 0.0;
-//     }
-//   }
-//   if (velocidade_referencia_desejada > velocidade_maxima) {
-//     velocidade_referencia_desejada = velocidade_maxima;
-//   }
-//   return velocidade_referencia_desejada;
-// }
-
-void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
-{
-        float teste = msg->data;
-        // velocidade_referencia = teste;
-        if (teste > -0.2 && teste < 0.2)
-        {
-            velocidade_referencia = 0;
-            // ROS_INFO("Escutei velocidade referencia entre -1.0 e 1.0: %f", velocidade_referencia);
-        }
-        else
-        {
-            velocidade_referencia = -teste;
-            // velocidade_referencia_desejada = atualizar_velocidade_referencia(velocidade_referencia, velocidade_referencia_desejada, taxa_desaceleracao, velocidade_maxima);
-            // ROS_INFO("Escutei velocidade referencia: %f", velocidade_referencia);
-        }
-}
-
 double voltasParaMetros(double voltas)
 {
     return voltas * comprimento_roda;
 }
+
 float velocidadeParaMetros(float velocidade)
 {
     return velocidade * comprimento_roda;
 }
 
+
+//Funções do ROS
+
+void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
+{
+    float teste = msg->data;
+    velocidade_referencia = teste;
+}
+
+// Código Principal ---------------------------------------------------------------------------------------------------------
+
 int main(int argc, char *argv[])
 {
 
+    //Driver -------------------------------------------------------------------------------------------------------
+
+    //Inicializa encoders
     if (rc_encoder_eqep_init())
     {
         fprintf(stderr, "ERROR: failed to run rc_encoder_eqep_init\n");
         return -1;
     }
 
-    // Inicialize GPIO pin for motor control
+    // Inicializa os pinos
     rc_gpio_init(1, GPIO_PIN_1_17, GPIOHANDLE_REQUEST_OUTPUT);
     rc_gpio_init(1, GPIO_PIN_1_25, GPIOHANDLE_REQUEST_OUTPUT);
     rc_gpio_init(3, GPIO_PIN_3_17, GPIOHANDLE_REQUEST_OUTPUT);
     rc_gpio_init(3, GPIO_PIN_3_20, GPIOHANDLE_REQUEST_OUTPUT);
 
-    // Set PWM pin
+    // Seta os pinos como pinos PWM
     rc_pinmux_set(GPS_HEADER_PIN_PWM_DIREITA_3, PINMUX_PWM);
     rc_pinmux_set(GPS_HEADER_PIN_PWM_ESQUERDA_4, PINMUX_PWM);
 
-    // PWM with 50HZ
+    // Inicializa PWM com 50 HZ
     rc_pwm_init(0, 50);
 
-    signal(SIGINT, __signal_handler);
-    running = 1;
+    //ROS ------------------------------------------------------------------------------
 
+    //Inicializa e cria o nó
     ros::init(argc, argv, "controle_velocidade");
-
     ros::NodeHandle n;
 
+    //Declaração de Publishers e Subscriber
+    ros::Publisher velocidade = n.advertise<std_msgs::Float32>("velocidade", QUEUE_SIZE);
+    ros::Publisher posicao = n.advertise<std_msgs::Float64>("posicao", QUEUE_SIZE);
+    ros::Subscriber sub = n.subscribe("referencia", QUEUE_SIZE, chatterCallback);
     // ros::Publisher chatter_pub = n.advertise<std_msgs::Float32MultiArray>("chatter", 10);
-    ros::Publisher velocidade = n.advertise<std_msgs::Float32>("velocidade", 10);
-    ros::Publisher posicao = n.advertise<std_msgs::Float64>("posicao", 10);
 
-    ros::Subscriber sub = n.subscribe("referencia", 1000, chatterCallback);
-
+    //Seta frequência de publicação e escuta
     ros::Rate rate(PUBLISH_RATE_HZ);
-
-    int i = 0;
-
-    printf("Velocidade Started");
 
     while (ros::ok())
     {
@@ -351,15 +316,7 @@ int main(int argc, char *argv[])
         motorEsquerda(potencia_motor_esquerda);
         motorDireita(potencia_motor_direita);
 
-        // printf("Potência Esquerda: %f, Velocidade esquerda: %f, encoder esquerda: %d, referência: %f \n", potencia_motor_esquerda, velocidade_esquerda, encoder0Pos, velocidade_referencia);
-        // printf("Potência Direita: %f, Velocidade direita: %f, encoder direita: %d, referência: %f \n", potencia_motor_direita, velocidade_direita, encoder1Pos, velocidade_referencia);
-        // printf("Erro Direita: %f, Somatório do Erro Direita: %f, referência: %f \n", erro_direita, somatorio_erro_direita, velocidade_referencia);
-        // printf("Erro Esquerda: %f, Somatório do Erro Esquerda: %f, referência: %f \n", erro_esquerda, somatorio_erro_esquerda, velocidade_referencia);
-
-        // printf("Esquerda: %f, %f, %f, \n", velocidade_esquerda, somatorio_erro_esquerda, velocidade_referencia);
-        // printf("Direita: %f, %f, %f, \n", velocidade_direita, somatorio_erro_direita, velocidade_referencia);
-        // printf("Direita: %f \n", velocidade_referencia);
-
+        //Plotar valores no gráfico
         // std_msgs::Float32MultiArray msg;
         // msg.data.push_back(velocidade_esquerda);
         // msg.data.push_back(somatorio_erro_esquerda);
@@ -388,26 +345,8 @@ int main(int argc, char *argv[])
         // printf("Potência Direita: %f, Velocidade direita: %f, encoder direita: %d, referência: %f \n", potencia_motor_direita, velocidade_direita, encoder1Pos, velocidade_referencia);
         // printf("velocidade metros: %f, posicao metros: %f \n", velocidade_metros, voltas_metros);
 
-        // if (velocidade_direita > -3.0 && velocidade_direita < 3.0)
-        // {
-        //     chatter_pub.publish(msg);
-        // }
-
         ros::spinOnce();
         rate.sleep();
-
-        // int testePeriodo = PERIODO - (micros() - tempo);
-        // printf("periodo: %d\n", testePeriodo);
-
-        // if (testePeriodo > 0)
-        // {
-        //     // Lidando com período
-        //     rc_usleep(testePeriodo);
-        // }
-        // else
-        // {
-        //     perror("DEU RUIM RAPAZ!! PROCESSAAAAMENTO ...\n");
-        // }
     }
 
     rc_cleanup();
