@@ -259,14 +259,67 @@ static void dmp_callback(void)
     last_publish_time_imu = current_time_imu;
 }
 
-void referenciaPosicaoCallback(const std_msgs::Float32::ConstPtr &msg)
+float J(float *K)
 {
-    referencePosicao = msg->data;
+
+    float error[4];
+
+    error[0] = theta - referenceTheta;
+    error[1] = omega - referenceOmega;
+    error[2] = posicao - referencePosicao;
+    error[3] = velocidade - referenceVelocidade;
+
+    // Controlador
+    referencia = 0;
+
+    for (int i = 0; i < 4; i++)
+    {
+        referencia += error[i] * K[i];
+    }
+    return referencia;
 }
 
-void referenciaVelocidadeCallback(const std_msgs::Float32::ConstPtr &msg)
+void gradient(float *K, float *grad_J)
 {
-    referenceVelocidade = msg->data;
+    float eps = 0.0001;
+    float K_temp[NUM_PARAMS];
+
+    for (int i = 0; i < NUM_PARAMS; i++)
+    {
+        // Faça uma cópia temporária de K
+        memcpy(K_temp, K, sizeof(K_temp));
+
+        // Adicione um pequeno valor a K[i]
+        K_temp[i] += eps;
+
+        // Calcule a função objetivo J com o valor modificado de K[i]
+        float J_plus = J(K_temp);
+
+        // Subtraia um pequeno valor de K[i]
+        K_temp[i] -= 2 * eps;
+
+        // Calcule a função objetivo J com o valor modificado de K[i]
+        float J_minus = J(K_temp);
+
+        // Calcule a derivada parcial da função objetivo em relação a K[i]
+        grad_J[i] = (J_plus - J_minus) / (2 * eps);
+    }
+}
+
+void gradient_descent(float *K, float alpha, int max_iter)
+{
+    float grad_J[NUM_PARAMS];
+
+    for (int i = 0; i < max_iter; i++)
+    {
+        gradient(K, grad_J);
+
+        // Atualize os valores de K de acordo com o gradiente descendente
+        for (int j = 0; j < NUM_PARAMS; j++)
+        {
+            K[j] -= alpha * grad_J[j];
+        }
+    }
 }
 
 // Código Principal ---------------------------------------------------------------------------------------------------------
@@ -315,8 +368,6 @@ int main(int argc, char *argv[])
     // ros::NodeHandle n;
     // pub = n.advertise<std_msgs::Float32>("angle", QUEUE_SIZE);
     // pub_theta_ponto = n.advertise<std_msgs::Float32>("angle_theta_ponto", QUEUE_SIZE);
-    ros::Subscriber referenciaPosicao = n.subscribe("referencia_posicao", QUEUE_SIZE, referenciaPosicaoCallback);
-    ros::Subscriber referenciaVelocidade = n.subscribe("referencia_velocidade", QUEUE_SIZE, referenciaVelocidadeCallback);
     ros::Rate rate(PUBLISH_RATE_HZ);
 
     rc_mpu_config_t conf = rc_mpu_default_config();
@@ -346,9 +397,8 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    float K[4] = {55.2761 * 0.18, 5.3796 * 0.05, 3.1623 * 0.2, 5.5528 * 0.18};
-    // float K[4] = {55.2761 * 0.18, 5.3796 * 0.03, 3.1623 * 0.3, 5.5528 * 0.18};
-    // float K[4] = {55.2761, 5.3796, 3.1623, 5.5528};
+    // float K[4] = {55.2761 * 0.18, 5.3796 * 0.18, 3.1623 * 0.18, 5.5528 * 0.18};
+    float K[4] = {55.2761, 5.3796, 3.1623, 5.5528};
     float error[4];
 
     static ros::Time last_publish_time = ros::Time::now();
@@ -364,15 +414,29 @@ int main(int argc, char *argv[])
     float velocidade_esquerda_media = 0;
     float velocidade_direita_media = 0;
 
+    // Defina a taxa de aprendizagem
+    float alpha = 0.01;
+
+    // Defina o número máximo de iterações
+    int max_iter = 1000;
+
     rc_mpu_set_dmp_callback(&dmp_callback);
 
-    for (int i = 0; i < 200000; i++)
+    for (int i = 0; i < 120000; i++)
     {
         rc_usleep(1);
     }
 
     while (ros::ok())
     {
+        // Execute o gradiente descendente
+        gradient_descent(K, alpha, max_iter);
+
+        for (int i = 0; i < NUM_PARAMS; i++)
+        {
+            printf("K[%d] = %f\n", i, K[i]);
+        }
+
         ros::Time current_time = ros::Time::now();
 
         ros::Duration dt = current_time - last_publish_time;
@@ -461,10 +525,10 @@ int main(int argc, char *argv[])
             //     velocidade_referencia = 1.8;
             // }
 
-            // float thetaReferencia = error[0] * K[0];
-            // float omegaReferencia = error[1] * K[1];
-            // float posicaoReferencia = error[2] * K[2];
-            // float velocidadeReferencia = error[3] * K[3];
+            float thetaReferencia = error[0] * K[0];
+            float omegaReferencia = error[1] * K[1];
+            float posicaoReferencia = error[2] * K[2];
+            float velocidadeReferencia = error[3] * K[3];
 
             velocidade_referencia = referencia;
             // printf("%f, %f, %f, %f\n", dt.toSec(), velocidade_direita_media, velocidade_esquerda_media, velocidade_referencia);
@@ -514,7 +578,6 @@ int main(int argc, char *argv[])
         // }
 
         rate.sleep();
-        ros::spinOnce();
 
         // printf("Potência Esquerda: %f, Velocidade esquerda: %f, encoder esquerda: %d, referência: %f \n", potencia_motor_esquerda, velocidade_esquerda, encoder0Pos, velocidade_referencia);
         // printf("Potência Direita: %f, Velocidade direita: %f, encoder direita: %d, referência: %f \n", potencia_motor_direita, velocidade_direita, encoder1Pos, velocidade_referencia);

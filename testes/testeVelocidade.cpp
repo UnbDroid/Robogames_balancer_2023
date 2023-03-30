@@ -6,8 +6,8 @@
 
 #define PUBLISH_RATE_HZ 80
 
-float posicao_referencia = 0.7;
-float velocidade_referencia = 0.7;
+float posicao_referencia = 0.1;
+float velocidade_referencia = 0.1;
 
 int main(int argc, char **argv)
 {
