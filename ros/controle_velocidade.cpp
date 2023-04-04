@@ -97,6 +97,7 @@ float comprimento_roda = 2 * PI * RAIO_RODA;
 #define MEDIA_MODEL_SIZE 50
 #define TB_ROLL_Y 1
 #define NUM_PARAMS 4
+#define MAX_ERRO_POS 0.3f
 
 static rc_mpu_data_t mpu_data;
 
@@ -203,13 +204,6 @@ int encoder(int canal)
 
 // Funções de cálculos
 
-unsigned int micros()
-{
-    struct timespec t;
-    clock_gettime(CLOCK_MONOTONIC_RAW, &t); // change CLOCK_MONOTONIC_RAW to CLOCK_MONOTONIC on non linux computers
-    return t.tv_sec * 1000 + (t.tv_nsec + 500000) / 1000;
-}
-
 double voltasParaMetros(double voltas)
 {
     return voltas * comprimento_roda;
@@ -226,100 +220,6 @@ void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
 {
     float teste = msg->data;
     velocidade_referencia = teste;
-}
-
-static void dmp_callback(void)
-{
-    static ros::Time last_publish_time_imu = ros::Time::now();
-
-    ros::Time current_time_imu = ros::Time::now();
-
-    ros::Duration dt = current_time_imu - last_publish_time_imu;
-    if ((dt).toSec() >= 1.0 / PUBLISH_RATE_HZ)
-    {
-        theta = (mpu_data.dmp_TaitBryan[TB_ROLL_Y]);
-
-        if (prev_time.isZero())
-        {
-            prev_time = current_time_imu;
-        }
-        else
-        {
-            ros::Duration dt = current_time_imu - prev_time;
-            if (dt.toSec() > 0.0)
-            {
-                float d_angle = theta - prev_angle;
-                float angle_derivative = d_angle / dt.toSec();
-                omega = angle_derivative;
-            }
-        }
-        prev_angle = theta;
-        prev_time = current_time_imu;
-    }
-    last_publish_time_imu = current_time_imu;
-}
-
-float J(float *K)
-{
-
-    float error[4];
-
-    error[0] = theta - referenceTheta;
-    error[1] = omega - referenceOmega;
-    error[2] = posicao - referencePosicao;
-    error[3] = velocidade - referenceVelocidade;
-
-    // Controlador
-    referencia = 0;
-
-    for (int i = 0; i < 4; i++)
-    {
-        referencia += error[i] * K[i];
-    }
-    return referencia;
-}
-
-void gradient(float *K, float *grad_J)
-{
-    float eps = 0.0001;
-    float K_temp[NUM_PARAMS];
-
-    for (int i = 0; i < NUM_PARAMS; i++)
-    {
-        // Faça uma cópia temporária de K
-        memcpy(K_temp, K, sizeof(K_temp));
-
-        // Adicione um pequeno valor a K[i]
-        K_temp[i] += eps;
-
-        // Calcule a função objetivo J com o valor modificado de K[i]
-        float J_plus = J(K_temp);
-
-        // Subtraia um pequeno valor de K[i]
-        K_temp[i] -= 2 * eps;
-
-        // Calcule a função objetivo J com o valor modificado de K[i]
-        float J_minus = J(K_temp);
-
-        // Calcule a derivada parcial da função objetivo em relação a K[i]
-        grad_J[i] = (J_plus - J_minus) / (2 * eps);
-    }
-}
-
-void gradient_descent(float *K, float alpha, int max_iter)
-{
-    float grad_J[NUM_PARAMS];
-
-    for (int i = 0; i < max_iter; i++)
-    {
-        gradient(K, grad_J);
-
-        // Atualize os valores de K de acordo com o gradiente descendente
-        for (int j = 0; j < NUM_PARAMS; j++)
-        {
-            K[j] -= alpha * grad_J[j];
-        }
-    }
 }
 
 // Código Principal ---------------------------------------------------------------------------------------------------------
@@ -356,55 +256,16 @@ int main(int argc, char *argv[])
     ros::NodeHandle n;
 
     // Declaração de Publishers e Subscriber
-    // ros::Publisher velocidade = n.advertise<std_msgs::Float32>("velocidade", QUEUE_SIZE);
-    // ros::Publisher posicao = n.advertise<std_msgs::Float64>("posicao", QUEUE_SIZE);
-    // ros::Subscriber sub = n.subscribe("referencia", QUEUE_SIZE, chatterCallback);
-    // ros::Publisher chatter_pub = n.advertise<std_msgs::Float32MultiArray>("chatter", 10);
+    ros::Publisher velocidade = n.advertise<std_msgs::Float32>("velocidade", QUEUE_SIZE);
+    ros::Publisher posicao = n.advertise<std_msgs::Float64>("posicao", QUEUE_SIZE);
+
+    ros::Subscriber sub = n.subscribe("referencia", QUEUE_SIZE, chatterCallback);
+    ros::Publisher chatter_pub = n.advertise<std_msgs::Float32MultiArray>("chatter", 10);
 
     // Seta frequência de publicação e escuta
-    // ros::Rate rate(PUBLISH_RATE_HZ);
-
-    // ros::init(argc, argv, "Imu");
-    // ros::NodeHandle n;
-    // pub = n.advertise<std_msgs::Float32>("angle", QUEUE_SIZE);
-    // pub_theta_ponto = n.advertise<std_msgs::Float32>("angle_theta_ponto", QUEUE_SIZE);
     ros::Rate rate(PUBLISH_RATE_HZ);
 
-    rc_mpu_config_t conf = rc_mpu_default_config();
-    conf.i2c_bus = I2C_BUS;
-    conf.gpio_interrupt_pin_chip = GPIO_INT_PIN_CHIP;
-    conf.gpio_interrupt_pin = GPIO_INT_PIN_PIN;
-    conf.dmp_sample_rate = SAMPLE_RATE_HZ;
-    conf.dmp_auto_calibrate_gyro = 1;
-    conf.orient = ORIENTATION_Z_UP;
-
-    if (!rc_mpu_is_gyro_calibrated())
-    {
-        printf("Gyro not calibrated, automatically starting calibration routine\n");
-        printf("Let your MiP sit still on a firm surface\n");
-        rc_mpu_calibrate_gyro_routine(conf);
-    }
-
-    if (!rc_mpu_is_accel_calibrated())
-    {
-        printf("Accel not calibrated, automatically starting calibration routine\n");
-        rc_mpu_calibrate_accel_routine(conf);
-    }
-
-    if (rc_mpu_initialize_dmp(&mpu_data, conf))
-    {
-        printf("rc_mpu_initialize_dmp_failed\n");
-        return -1;
-    }
-
-    // float K[4] = {55.2761 * 0.18, 5.3796 * 0.18, 3.1623 * 0.18, 5.5528 * 0.18};
-    float K[4] = {55.2761, 5.3796, 3.1623, 5.5528};
-    float error[4];
-
     static ros::Time last_publish_time = ros::Time::now();
-
-    int count = 0;
-    double total_period = 0.0;
 
     float velocidade_esquerda[MEDIA_MODEL_SIZE] = {0};
     float velocidade_direita[MEDIA_MODEL_SIZE] = {0};
@@ -414,38 +275,17 @@ int main(int argc, char *argv[])
     float velocidade_esquerda_media = 0;
     float velocidade_direita_media = 0;
 
-    // Defina a taxa de aprendizagem
-    float alpha = 0.01;
-
-    // Defina o número máximo de iterações
-    int max_iter = 1000;
-
-    rc_mpu_set_dmp_callback(&dmp_callback);
-
-    for (int i = 0; i < 120000; i++)
-    {
-        rc_usleep(1);
-    }
 
     while (ros::ok())
     {
-        // Execute o gradiente descendente
-        gradient_descent(K, alpha, max_iter);
-
-        for (int i = 0; i < NUM_PARAMS; i++)
-        {
-            printf("K[%d] = %f\n", i, K[i]);
-        }
 
         ros::Time current_time = ros::Time::now();
 
         ros::Duration dt = current_time - last_publish_time;
 
-        count++;
-        total_period += dt.toSec();
-
         if ((dt).toSec() >= 1.0 / PUBLISH_RATE_HZ)
         {
+           
             float multiplicacaoDireita = velocidade_referencia_old * velocidade_referencia;
             if (multiplicacaoDireita <= 0.0)
             {
@@ -497,45 +337,8 @@ int main(int argc, char *argv[])
             posicao = voltas_metros;
 
             float velocidade_media = (velocidade_direita_media + velocidade_esquerda_media) / 2;
-            // float velocidade_metros = velocidadeParaMetros(velocidade_media);
-            // velocidade = velocidade_metros;
             velocidade = velocidade_media;
 
-            error[0] = theta - referenceTheta;
-            error[1] = omega - referenceOmega;
-            error[2] = posicao - referencePosicao;
-            error[3] = velocidade - referenceVelocidade;
-
-            // printf("%f, %f, %f, %f \n", theta, omega, posicao, velocidade);
-
-            // Controlador
-            referencia = 0;
-
-            for (int i = 0; i < 4; i++)
-            {
-                referencia += error[i] * K[i];
-            }
-
-            // if (theta < 0)
-            // {
-            //     velocidade_referencia = -1.8;
-            // }
-            // else
-            // {
-            //     velocidade_referencia = 1.8;
-            // }
-
-            float thetaReferencia = error[0] * K[0];
-            float omegaReferencia = error[1] * K[1];
-            float posicaoReferencia = error[2] * K[2];
-            float velocidadeReferencia = error[3] * K[3];
-
-            velocidade_referencia = referencia;
-            // printf("%f, %f, %f, %f\n", dt.toSec(), velocidade_direita_media, velocidade_esquerda_media, velocidade_referencia);
-            // printf("%f, %f, %f, %f, %f\n", thetaReferencia, omegaReferencia, posicaoReferencia, velocidadeReferencia, velocidade_referencia);
-            // printf("%f, %f, %f, %f\n", theta, omega, velocidade, posicao);
-            // printf("%f, %f\n", theta, omega);
-            // printf("%f, %f\n", theta, thetaReferencia);
 
             // Controle
             erro_esquerda = velocidade_referencia - velocidade_esquerda_media;
@@ -558,30 +361,13 @@ int main(int argc, char *argv[])
             motorEsquerda(potencia_motor_esquerda);
             motorDireita(potencia_motor_direita);
 
-            // printf("%f, %f\n", velocidade, referencia);
-            // printf("%f\n", velocidade);
-        }
-        else
-        {
-            // rc_led_set(RC_LED_BAT100, 1);
-        }
 
+        }
         // rc_led_set(RC_LED_BAT100, 0);
         last_publish_time = current_time;
 
-        // if (count == 1000)
-        // {
-        //     printf("%f\n", total_period / count);
-
-        //     count = 0;
-        //     total_period = 0.0;
-        // }
-
         rate.sleep();
-
-        // printf("Potência Esquerda: %f, Velocidade esquerda: %f, encoder esquerda: %d, referência: %f \n", potencia_motor_esquerda, velocidade_esquerda, encoder0Pos, velocidade_referencia);
-        // printf("Potência Direita: %f, Velocidade direita: %f, encoder direita: %d, referência: %f \n", potencia_motor_direita, velocidade_direita, encoder1Pos, velocidade_referencia);
-        // printf("velocidade metros: %f, posicao metros: %f \n", velocidade_metros, voltas_metros);
+        ros::spinOnce();
     }
 
     rc_cleanup();
