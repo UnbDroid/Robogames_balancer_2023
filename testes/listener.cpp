@@ -97,6 +97,7 @@ float comprimento_roda = 2 * PI * RAIO_RODA;
 #define MEDIA_MODEL_SIZE 50
 #define TB_ROLL_Y 1
 #define NUM_PARAMS 4
+#define MAX_ERRO_POS 0.3f
 
 static rc_mpu_data_t mpu_data;
 
@@ -237,7 +238,7 @@ static void dmp_callback(void)
     ros::Duration dt = current_time_imu - last_publish_time_imu;
     if ((dt).toSec() >= 1.0 / PUBLISH_RATE_HZ)
     {
-        theta = (mpu_data.dmp_TaitBryan[TB_ROLL_Y]);
+        theta = (mpu_data.dmp_TaitBryan[TB_ROLL_Y]) + 0.05;
 
         if (prev_time.isZero())
         {
@@ -346,10 +347,22 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    float K[4] = {55.2761 * 0.18, 5.3796 * 0.05, 3.1623 * 0.2, 5.5528 * 0.18};
-    // float K[4] = {55.2761 * 0.18, 5.3796 * 0.03, 3.1623 * 0.3, 5.5528 * 0.18};
-    // float K[4] = {55.2761, 5.3796, 3.1623, 5.5528};
-    float error[4];
+    // Funcionou um metro
+    // float K[6] = {15, 0.2690, 2.3, 0.85, 0, 0.00008};
+    // float K[6] = {15, 0.2690, 3.5, 0.85, 0, 0.00008};
+    float K[6] = {15.5, 0.2690, 3.5, 0.85, 0, 0.000081};
+    // float K[6] = {16.5, 0.2690, 3.8, 0.81, 0, 0.000081};
+    // float K[6] = {15, 0.2690, 2.1, 0.85, 0, 0.00008};
+    // float K[6] = {15, 0.2690, 1.8, 0.85, 0, 0.00008};
+    // float K[6] = {16, 0.2690, 1.9, 0.81, 0, 0.00008};
+
+    // float K[6] = {14, 0.4, 1.9, 0.75, 0, 0.00009};
+
+    float error[6];
+    float iPosicao = 0;
+    float aceleracao = 0;
+    float velocidade_old = 0;
+    float referencePosicaoTeto = 0;
 
     static ros::Time last_publish_time = ros::Time::now();
 
@@ -366,13 +379,16 @@ int main(int argc, char *argv[])
 
     rc_mpu_set_dmp_callback(&dmp_callback);
 
-    for (int i = 0; i < 200000; i++)
+    for (int i = 0; i < 400000; i++)
     {
         rc_usleep(1);
     }
 
+    printf("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f \n", K[0], K[1], K[2], K[3], K[4], K[5], 0, 0, 0, 0, 0, 0);
+
     while (ros::ok())
     {
+
         ros::Time current_time = ros::Time::now();
 
         ros::Duration dt = current_time - last_publish_time;
@@ -382,6 +398,20 @@ int main(int argc, char *argv[])
 
         if ((dt).toSec() >= 1.0 / PUBLISH_RATE_HZ)
         {
+            referencePosicao += referenceVelocidade * (dt).toSec();
+
+            // referencePosicaoTeto += referenceVelocidade *(dt).toSec();
+            // referencePosicao = posicao + 0.05;
+
+            // if(referencePosicao>referencePosicaoTeto){
+            //     referencePosicao = referencePosicaoTeto;
+            // }
+
+            if (referencePosicao >= 7.0)
+            {
+                referenceVelocidade = 0;
+            }
+
             float multiplicacaoDireita = velocidade_referencia_old * velocidade_referencia;
             if (multiplicacaoDireita <= 0.0)
             {
@@ -435,21 +465,49 @@ int main(int argc, char *argv[])
             float velocidade_media = (velocidade_direita_media + velocidade_esquerda_media) / 2;
             // float velocidade_metros = velocidadeParaMetros(velocidade_media);
             // velocidade = velocidade_metros;
+            velocidade_old = velocidade;
             velocidade = velocidade_media;
+
+            iPosicao += posicao * (dt).toSec();
+
+            aceleracao = (velocidade - velocidade_old) / (dt).toSec();
 
             error[0] = theta - referenceTheta;
             error[1] = omega - referenceOmega;
             error[2] = posicao - referencePosicao;
             error[3] = velocidade - referenceVelocidade;
+            error[4] = iPosicao - 0;
+            error[5] = aceleracao - 0;
 
             // printf("%f, %f, %f, %f \n", theta, omega, posicao, velocidade);
 
             // Controlador
             referencia = 0;
 
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 6; i++)
             {
-                referencia += error[i] * K[i];
+                if (i != 0)
+                {
+                    if (error[i] * K[i] >= MAX_ERRO_POS)
+                    {
+                        referencia += MAX_ERRO_POS;
+                    }
+                    else
+                    {
+                        if (error[i] * K[i] <= -MAX_ERRO_POS)
+                        {
+                            referencia -= MAX_ERRO_POS;
+                        }
+                        else
+                        {
+                            referencia += error[i] * K[i];
+                        }
+                    }
+                }
+                else
+                {
+                    referencia += error[i] * K[i];
+                }
             }
 
             // if (theta < 0)
@@ -461,17 +519,21 @@ int main(int argc, char *argv[])
             //     velocidade_referencia = 1.8;
             // }
 
-            // float thetaReferencia = error[0] * K[0];
-            // float omegaReferencia = error[1] * K[1];
-            // float posicaoReferencia = error[2] * K[2];
-            // float velocidadeReferencia = error[3] * K[3];
+            float thetaReferencia = error[0] * K[0];
+            float omegaReferencia = error[1] * K[1];
+            float posicaoReferencia = error[2] * K[2];
+            float velocidadeReferencia = error[3] * K[3];
+            float iPosicaoReferencia = error[4] * K[4];
+            float aceleracaoReferencia = error[5] * K[5];
 
             velocidade_referencia = referencia;
             // printf("%f, %f, %f, %f\n", dt.toSec(), velocidade_direita_media, velocidade_esquerda_media, velocidade_referencia);
-            // printf("%f, %f, %f, %f, %f\n", thetaReferencia, omegaReferencia, posicaoReferencia, velocidadeReferencia, velocidade_referencia);
+            printf("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n", thetaReferencia, omegaReferencia, posicaoReferencia, velocidadeReferencia, aceleracaoReferencia, theta, omega, posicao, velocidade, aceleracao, referencePosicao, referenceVelocidade);
             // printf("%f, %f, %f, %f\n", theta, omega, velocidade, posicao);
+            // printf("%f\n", theta);
             // printf("%f, %f\n", theta, omega);
             // printf("%f, %f\n", theta, thetaReferencia);
+            // printf("%f, %f, %f, %f\n", posicao, referencePosicao, velocidade, referenceVelocidade);
 
             // Controle
             erro_esquerda = velocidade_referencia - velocidade_esquerda_media;
