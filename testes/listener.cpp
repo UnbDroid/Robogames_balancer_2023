@@ -348,13 +348,10 @@ int main(int argc, char *argv[])
     }
 
     // Funcionou um metro
-    // float K[6] = {15, 0.2690, 2.3, 0.85, 0, 0.00008};
-    // float K[6] = {15, 0.2690, 3.5, 0.85, 0, 0.00008};
+    // float K[6] = {15.5, 0.2690, 3.5, 0.85, 0, 0.000081};
     float K[6] = {15.5, 0.2690, 3.5, 0.85, 0, 0.000081};
     // float K[6] = {16.5, 0.2690, 3.8, 0.81, 0, 0.000081};
     // float K[6] = {15, 0.2690, 2.1, 0.85, 0, 0.00008};
-    // float K[6] = {15, 0.2690, 1.8, 0.85, 0, 0.00008};
-    // float K[6] = {16, 0.2690, 1.9, 0.81, 0, 0.00008};
 
     // float K[6] = {14, 0.4, 1.9, 0.75, 0, 0.00009};
 
@@ -407,7 +404,7 @@ int main(int argc, char *argv[])
             //     referencePosicao = referencePosicaoTeto;
             // }
 
-            if (referencePosicao >= 7.0)
+            if (referencePosicao >= 4.0)
             {
                 referenceVelocidade = 0;
             }
