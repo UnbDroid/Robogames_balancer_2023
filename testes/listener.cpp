@@ -242,12 +242,13 @@ void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
 
 static void dmp_callback(void)
 {
-    static ros::Time last_publish_time_imu = ros::Time::now();
 
-    ros::Time current_time_imu = ros::Time::now();
+     static std::time_t last_publish_time_imu = std::time(nullptr);
+    std::time_t current_time_imu = std::time(nullptr);
 
-    ros::Duration dt = current_time_imu - last_publish_time_imu;
-    if ((dt).toSec() >= 1.0 / PUBLISH_RATE_HZ)
+    std::time_t dt = current_time_imu - last_publish_time_imu;
+
+    if ((dt) >= 1.0 / PUBLISH_RATE_HZ)
     {
         theta = (mpu_data.dmp_TaitBryan[TB_ROLL_Y]) + 0.05;
 
@@ -259,11 +260,11 @@ static void dmp_callback(void)
         }
         else
         {
-            ros::Duration dt = current_time_imu - prev_time;
-            if (dt.toSec() > 0.0)
+            std::time_t dt = current_time_imu - prev_time;
+            if (dt > 0.0)
             {
                 float d_angle = theta - prev_angle;
-                float angle_derivative = d_angle / dt.toSec();
+                float angle_derivative = d_angle / dt;
                 omega = angle_derivative;
             }
         }
@@ -408,12 +409,12 @@ int main(int argc, char *argv[])
     while (ros::ok())
     {
 
-        static ros::Time last_publish_time = ros::Time::now();
-        ros::Time current_time = ros::Time::now();
+        static std::time_t last_publish_time = std::time(nullptr);
+        std::time_t current_time = std::time(nullptr);
 
-        ros::Duration dt = current_time - last_publish_time;
+        std::time_t dt = current_time - last_publish_time;
 
-        float dt_sec = (dt).toSec();
+        float dt_sec = (dt);
 
         // if(dt_sec >= 0.003){
         //     dt_sec = 0.003;
