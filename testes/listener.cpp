@@ -11,11 +11,9 @@
 #include <signal.h>
 #include <termios.h>
 #include <sys/time.h>
-#include "ros/ros.h"
-#include "std_msgs/Float32.h"
-#include "std_msgs/Float64.h"
-#include "std_msgs/Float32MultiArray.h"
 #include <sched.h>
+#include <iostream>
+#include <ctime>
 
 // Defines ------------------------------------------------------------------------------------------------------------
 
@@ -110,7 +108,7 @@ float comprimento_roda = 2 * PI * RAIO_RODA;
 static rc_mpu_data_t mpu_data;
 
 static float prev_angle = 0.0;
-static ros::Time prev_time;
+static std::time_t prev_time;
 
 float uDir = 0;
 float kpDir = 2.0;
@@ -234,11 +232,11 @@ float velocidadeParaMetros(float velocidade)
 
 // Funções do ROS
 
-void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
-{
-    float teste = msg->data;
-    velocidade_referencia = teste;
-}
+// void chatterCallback(const std_msgs::Float32::ConstPtr &msg)
+// {
+//     float teste = msg->data;
+//     velocidade_referencia = teste;
+// }
 
 static void dmp_callback(void)
 {
@@ -254,7 +252,7 @@ static void dmp_callback(void)
 
         alfa = mpu_data.dmp_TaitBryan[TB_YAW_Z];
 
-        if (prev_time.isZero())
+        if (prev_time == 0)
         {
             prev_time = current_time_imu;
         }
@@ -274,15 +272,15 @@ static void dmp_callback(void)
     last_publish_time_imu = current_time_imu;
 }
 
-void referenciaPosicaoCallback(const std_msgs::Float32::ConstPtr &msg)
-{
-    referencePosicao = msg->data;
-}
+// void referenciaPosicaoCallback(const std_msgs::Float32::ConstPtr &msg)
+// {
+//     referencePosicao = msg->data;
+// }
 
-void referenciaVelocidadeCallback(const std_msgs::Float32::ConstPtr &msg)
-{
-    referenceVelocidade = msg->data;
-}
+// void referenciaVelocidadeCallback(const std_msgs::Float32::ConstPtr &msg)
+// {
+//     referenceVelocidade = msg->data;
+// }
 
 // Código Principal ---------------------------------------------------------------------------------------------------------
 
@@ -322,8 +320,8 @@ int main(int argc, char *argv[])
     // }
 
     // Inicializa e cria o nó
-    ros::init(argc, argv, "controle_velocidade");
-    ros::NodeHandle n;
+    // ros::init(argc, argv, "controle_velocidade");
+    // ros::NodeHandle n;
 
     // Declaração de Publishers e Subscriber
     // ros::Publisher velocidade = n.advertise<std_msgs::Float32>("velocidade", QUEUE_SIZE);
@@ -338,9 +336,9 @@ int main(int argc, char *argv[])
     // ros::NodeHandle n;
     // pub = n.advertise<std_msgs::Float32>("angle", QUEUE_SIZE);
     // pub_theta_ponto = n.advertise<std_msgs::Float32>("angle_theta_ponto", QUEUE_SIZE);
-    ros::Subscriber referenciaPosicao = n.subscribe("referencia_posicao", QUEUE_SIZE, referenciaPosicaoCallback);
-    ros::Subscriber referenciaVelocidade = n.subscribe("referencia_velocidade", QUEUE_SIZE, referenciaVelocidadeCallback);
-    ros::Rate rate(PUBLISH_RATE_HZ);
+    // ros::Subscriber referenciaPosicao = n.subscribe("referencia_posicao", QUEUE_SIZE, referenciaPosicaoCallback);
+    // ros::Subscriber referenciaVelocidade = n.subscribe("referencia_velocidade", QUEUE_SIZE, referenciaVelocidadeCallback);
+    // ros::Rate rate(PUBLISH_RATE_HZ);
 
     rc_mpu_config_t conf = rc_mpu_default_config();
     conf.i2c_bus = I2C_BUS;
@@ -371,8 +369,8 @@ int main(int argc, char *argv[])
 
     // Funcionou um metro
     // float K[6] = {15.5, 0.2690, 3.5, 0.85, 0, 0.000081};
-    float K[6] = {15.6, 0.2690, 4.2, 0.85, 0, 0.000082};
-    // float K[6] = {14.7, 0.2690, 4.5, 0.85, 0, 0.000081};
+    // float K[6] = {15.6, 0.2690, 4.2, 0.85, 0, 0.000082}; // competicao
+    float K[6] = {1000, 0.2690, 4.5, 0.85, 0, 0.000081};
     // float K[6] = {16.5, 0.2690, 3.8, 0.81, 0, 0.000081};
     // float K[6] = {15, 0.2690, 2.1, 0.85, 0, 0.00008};
 
@@ -397,7 +395,7 @@ int main(int argc, char *argv[])
 
     rc_mpu_set_dmp_callback(&dmp_callback);
 
-    for (int i = 0; i < 400000; i++)
+    for (int i = 0; i < 100000; i++) //400000
     {
         rc_usleep(1);
     }
@@ -406,7 +404,7 @@ int main(int argc, char *argv[])
 
     printf("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f \n", K[0], K[1], K[2], K[3], K[4], K[5], 0, 0, 0, 0, 0, 0, 0, referencePosicao, referenceVelocidade,0, 0);
 
-    while (ros::ok())
+    while (1)
     {
 
         static std::time_t last_publish_time = std::time(nullptr);
@@ -576,7 +574,7 @@ int main(int argc, char *argv[])
 
             velocidade_referencia = referencia;
             // printf("%f, %f, %f, %f\n", dt.toSec(), velocidade_direita_media, velocidade_esquerda_media, velocidade_referencia);
-            printf("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n", thetaReferencia, omegaReferencia, posicaoReferencia, velocidadeReferencia, aceleracaoReferencia, theta, omega, posicao, velocidade, aceleracao, referencePosicao, referenceVelocidade, ros::Time::now().toSec(), voltas_direita, voltas_esquerda, dt_sec, alfa);
+            printf("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n", thetaReferencia, omegaReferencia, posicaoReferencia, velocidadeReferencia, aceleracaoReferencia, theta, omega, posicao, velocidade, aceleracao, referencePosicao, referenceVelocidade, 0, voltas_direita, voltas_esquerda, dt_sec, alfa);
             // printf("%f, %f, %f, %f\n", theta, omega, velocidade, posicao);
             // printf("%f\n", theta);
             // printf("%f, %f\n", theta, omega);
@@ -626,8 +624,8 @@ int main(int argc, char *argv[])
         //     total_period = 0.0;
         // }
 
-        rate.sleep();
-        ros::spinOnce();
+        // rate.sleep();
+        // ros::spinOnce();
 
         // printf("Potência Esquerda: %f, Velocidade esquerda: %f, encoder esquerda: %d, referência: %f \n", potencia_motor_esquerda, velocidade_esquerda, encoder0Pos, velocidade_referencia);
         // printf("Potência Direita: %f, Velocidade direita: %f, encoder direita: %d, referência: %f \n", potencia_motor_direita, velocidade_direita, encoder1Pos, velocidade_referencia);
