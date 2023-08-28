@@ -14,6 +14,8 @@
 #include <sched.h>
 #include <iostream>
 #include <ctime>
+#include <ratio>
+#include <chrono>
 
 // Defines ------------------------------------------------------------------------------------------------------------
 
@@ -108,7 +110,7 @@ float comprimento_roda = 2 * PI * RAIO_RODA;
 static rc_mpu_data_t mpu_data;
 
 static float prev_angle = 0.0;
-static std::time_t prev_time;
+static std::chrono::system_clock::time_point prev_time;
 
 float uDir = 0;
 float kpDir = 2.0;
@@ -238,31 +240,24 @@ float velocidadeParaMetros(float velocidade)
 //     velocidade_referencia = teste;
 // }
 
-static void dmp_callback(void)
-{
+void dmp_callback(void) {
+    static std::chrono::system_clock::time_point last_publish_time_imu = std::chrono::system_clock::now();
 
-     static std::time_t last_publish_time_imu = std::time(nullptr);
-    std::time_t current_time_imu = std::time(nullptr);
+    std::chrono::system_clock::time_point current_time_imu = std::chrono::system_clock::now();
 
-    std::time_t dt = current_time_imu - last_publish_time_imu;
+    std::chrono::duration<double> dt = current_time_imu - last_publish_time_imu;
+    if (dt.count() >= 1.0 / PUBLISH_RATE_HZ) {
+        theta = (mpu_data.dmp_TaitBryan[1]) + 0.05;
 
-    if ((dt) >= 1.0 / PUBLISH_RATE_HZ)
-    {
-        theta = (mpu_data.dmp_TaitBryan[TB_ROLL_Y]) + 0.05;
+        alfa = mpu_data.dmp_TaitBryan[2];
 
-        alfa = mpu_data.dmp_TaitBryan[TB_YAW_Z];
-
-        if (prev_time == 0)
-        {
+        if (prev_time.time_since_epoch().count() == 0) {
             prev_time = current_time_imu;
-        }
-        else
-        {
-            std::time_t dt = current_time_imu - prev_time;
-            if (dt > 0.0)
-            {
-                float d_angle = theta - prev_angle;
-                float angle_derivative = d_angle / dt;
+        } else {
+            std::chrono::duration<double> dt = current_time_imu - prev_time;
+            if (dt.count() > 0.0) {
+                double d_angle = theta - prev_angle;
+                double angle_derivative = d_angle / dt.count();
                 omega = angle_derivative;
             }
         }
@@ -271,6 +266,7 @@ static void dmp_callback(void)
     }
     last_publish_time_imu = current_time_imu;
 }
+
 
 // void referenciaPosicaoCallback(const std_msgs::Float32::ConstPtr &msg)
 // {
@@ -369,10 +365,12 @@ int main(int argc, char *argv[])
 
     // Funcionou um metro
     // float K[6] = {15.5, 0.2690, 3.5, 0.85, 0, 0.000081};
-    // float K[6] = {15.6, 0.2690, 4.2, 0.85, 0, 0.000082}; // competicao
-    float K[6] = {1000, 0.2690, 4.5, 0.85, 0, 0.000081};
-    // float K[6] = {16.5, 0.2690, 3.8, 0.81, 0, 0.000081};
-    // float K[6] = {15, 0.2690, 2.1, 0.85, 0, 0.00008};
+    // float K[6] = {200000, -150000.0, 4.2, 5.0738, 0, 0.000082}; 
+    // float K[6] = {-14.1235, -0.1297, -3.1623, 5.0738, 0, 0};
+    // float K[6] = {2920, -0.9370, 100, 100, 0, 0};
+    float K[6] = {2810, 50.84, 98.2, 5.0, 0, 0};
+    // float K[6] = {2930, -130.1, 98.2, -2.0, 0, 0};
+    // float K[6] = {2930, -0.9370, 20, -2.0, 0, 0};
 
     // float K[6] = {14, 0.4, 1.9, 0.75, 0, 0.00009};
 
@@ -402,17 +400,21 @@ int main(int argc, char *argv[])
 
     alfa0 = alfa;
 
-    printf("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f \n", K[0], K[1], K[2], K[3], K[4], K[5], 0, 0, 0, 0, 0, 0, 0, referencePosicao, referenceVelocidade,0, 0);
+    printf("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f \n", K[0], K[1], K[2], K[3], K[4], K[5], 0, 0, 0, 0, 0, 0, 0, referencePosicao, referenceVelocidade,0);
 
     while (1)
     {
 
-        static std::time_t last_publish_time = std::time(nullptr);
-        std::time_t current_time = std::time(nullptr);
+            // Obter o tempo atual do sistema
+        auto currentTime = std::chrono::system_clock::now();
 
-        std::time_t dt = current_time - last_publish_time;
+        auto last_publish_time = std::chrono::system_clock::now();        
+        auto duration = currentTime - last_publish_time;
 
-        float dt_sec = (dt);
+        double durationSeconds = std::chrono::duration_cast<std::chrono::duration<double>>(duration).count();
+
+
+        float dt_sec = (durationSeconds);
 
         // if(dt_sec >= 0.003){
         //     dt_sec = 0.003;
@@ -574,7 +576,7 @@ int main(int argc, char *argv[])
 
             velocidade_referencia = referencia;
             // printf("%f, %f, %f, %f\n", dt.toSec(), velocidade_direita_media, velocidade_esquerda_media, velocidade_referencia);
-            printf("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n", thetaReferencia, omegaReferencia, posicaoReferencia, velocidadeReferencia, aceleracaoReferencia, theta, omega, posicao, velocidade, aceleracao, referencePosicao, referenceVelocidade, 0, voltas_direita, voltas_esquerda, dt_sec, alfa);
+            printf("%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n", thetaReferencia, omegaReferencia, posicaoReferencia, velocidadeReferencia, aceleracaoReferencia, theta, omega, posicao, velocidade, aceleracao, referencePosicao, referenceVelocidade, durationSeconds, voltas_direita, voltas_esquerda, dt_sec);
             // printf("%f, %f, %f, %f\n", theta, omega, velocidade, posicao);
             // printf("%f\n", theta);
             // printf("%f, %f\n", theta, omega);
@@ -614,7 +616,7 @@ int main(int argc, char *argv[])
         }
 
         // rc_led_set(RC_LED_BAT100, 0);
-        last_publish_time = current_time;
+        last_publish_time = currentTime;
 
         // if (count == 1000)
         // {
