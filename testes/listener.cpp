@@ -247,7 +247,7 @@ void dmp_callback(void) {
 
     std::chrono::duration<double> dt = current_time_imu - last_publish_time_imu;
     if (dt.count() >= 1.0 / PUBLISH_RATE_HZ) {
-        theta = (mpu_data.dmp_TaitBryan[1]) + 0.05;
+        theta = (mpu_data.dmp_TaitBryan[1]); // 0.05
 
         alfa = mpu_data.dmp_TaitBryan[2];
 
@@ -369,7 +369,7 @@ int main(int argc, char *argv[])
     // float K[6] = {-14.1235, -0.1297, -3.1623, 5.0738, 0, 0};
     // float K[6] = {2920, -0.9370, 100, 100, 0, 0};
     // float K[6] = {2810, 0.2528, -50.2, 1.0, 0, 0};
-    float K[6] = {19.6, 0.5328, 0.325, 0.85, 0, 0.000082};
+    float K[6] = {19.6, 0.6328, 0.012, 5.01, 0, 0.000082};
     // float K[6] = {21.6, 0.2628, -200.8, 0.85, 0, 0.000082};
     // float K[6] = {19.6, 0.3628, -6.68, 0.85, 0, 0.000082};
     // float K[6] = {2930, -130.1, 98.2, -2.0, 0, 0};
