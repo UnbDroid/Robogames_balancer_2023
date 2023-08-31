@@ -366,7 +366,11 @@ int main(int argc, char *argv[])
     // Funcionou um metro
     // float K[6] = {19.6, 0.6790, 0.8, 0.85, 0, 0.000081};
     // float K[6] = {11.1, 0.8228, 0.0003, 0.85, 0, 0.000082}; // melhor resultado
-    float K[6] = {11.1, 0.8228, 0.0009, 0.85, 0, 0.000050}; // melhor resultado
+    float K[6] = {12.1, 2.5 , 0.0009, 0.85, 0, 0.000050}; // melhor resultado
+    // Subindo o Theta melhorou!
+    // 
+
+
     // float K[6] = {2810, 0.2528, -50.2, 1.0, 0, 0};
     // float K[6] = {19.6, 0.6328, 0.012, 5.01, 0, 0.000082};
     // float K[6] = {22.6, 0.0628, 0.05, 0.85, 0, 0};
